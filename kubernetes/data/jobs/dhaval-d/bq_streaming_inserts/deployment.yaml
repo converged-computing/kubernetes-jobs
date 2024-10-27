@@ -1,0 +1,24 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Unique key of the Job instance
+  name: bq-streaming-job-run6
+spec:
+  completions: 30
+  parallelism: 10
+  template:
+    metadata:
+      name: bq-streaming-job
+    spec:
+      containers:
+      - name: bq-streaming-job
+        image: gcr.io/google.com/testdhaval/bq_streaming_demo:v2
+        command: ["python"]
+        args: ["app.py","--project", "YOUR_PROJECT", "--dataset","YOUR_DATASET","--table","rides"]
+        env:
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: "bq-editor.json"
+      # Do not restart containers after they exit
+      restartPolicy: Never
+  # of retries before marking as failed.
+  backoffLimit: 10

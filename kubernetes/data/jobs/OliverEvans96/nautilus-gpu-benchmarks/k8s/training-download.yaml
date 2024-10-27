@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: training-data-download
+  namespace: gpu-ml-benchmarks
+spec:
+  template:
+    spec:
+      containers:
+      - name: data-downloader
+        image: peakcom/s5cmd
+        args: ["sync", "s3://mlcommons-training-wg-s3/gpt3/*", "/data/mlcommons/training/gpt3/"]
+        volumeMounts:
+        - mountPath: /data
+          name: data-vol
+        env:
+        - name: S3_ENDPOINT_URL
+          value: https://s3.us-east-1.lyvecloud.seagate.com
+        # NOTE: These credentials are posted in the public MLPerf documentation. They are not secret.
+        - name: AWS_ACCESS_KEY_ID
+          value: 3ZC41B4Z2WHM5DT2
+        - name: AWS_SECRET_ACCESS_KEY
+          value: AK4NQQZV0NKFEJWJUZVPX5XQ0QNTXCGW
+        resources:
+          limits:
+            memory: "8G"
+            cpu: "4"
+          requests:
+            memory: "8G"
+            cpu: "4"
+      restartPolicy: Never
+      volumes:
+      - name: data-vol
+        persistentVolumeClaim:
+          claimName: ml-benchmark-datasets

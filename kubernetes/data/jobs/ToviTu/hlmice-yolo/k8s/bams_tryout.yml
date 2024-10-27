@@ -1,0 +1,70 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tovitu-bams-train
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never  # Never | OnFailure
+        
+      containers:
+      - name: tovitu-container
+        image: tovitu/bams:latest
+        imagePullPolicy: Always
+
+        resources:
+          requests:
+            cpu: "1"
+            memory: "32Gi"
+            ephemeral-storage: "10Gi"
+          limits:
+            cpu: "4"
+            memory: "64Gi"
+            nvidia.com/gpu: 1
+            ephemeral-storage: "20Gi"
+
+        command: ["stdbuf", "-oL", "-eL", "/bin/bash", "-c"]
+        args:
+          - >-
+            aws --endpoint $ENDPOINT s3 cp s3://hengenlab/mark.song/l2_out.zip /dataset;
+            unzip /dataset/l2_out.zip -d /dataset/;
+            python custom_dataset.py --data_root /dataset/l2_out/ --batch 32;
+            aws --endpoint $ENDPOINT s3 cp $(ls | grep pt) s3://hengenlab/t.tovi/;
+
+
+        env:
+          - name: "SUBDIR"
+            value: "prey_capture"
+          - name: "VIDEODIR"
+            value: "s3://hengenlab/yolo_videos/"
+          - name: "ENDPOINT"
+            value: "https://s3-central.nrp-nautilus.io"
+          - name: "MODELNAME"
+            value: "best.pt"
+          - name: "ID"
+            value: "${ID}"
+          - name: "SUBDIR_LOWERCASE"
+            value: "${SUBDIR_LOWERCASE}"
+
+        volumeMounts:
+          - name: "prp-s3-credentials"
+            mountPath: "/root/.aws/credentials"
+            subPath: "credentials"
+          - name: "dshm"
+            mountPath: "/dev/shm"
+
+      tolerations:
+        - key: "nautilus.io/chase-ci"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+          
+      volumes:
+        - name: prp-s3-credentials
+          secret:
+            secretName: prp-s3-credentials
+        - name: dshm
+          emptyDir:
+            medium: Memory
+    

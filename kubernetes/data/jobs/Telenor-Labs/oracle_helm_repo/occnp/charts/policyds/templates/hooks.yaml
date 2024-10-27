@@ -1,0 +1,910 @@
+{{- if $.Values.global.policydsEnable }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "ocpm-policyds-hook-name-pre-install" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "ocpm-policyds-hook-name-pre-install" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+        - name: {{ template "ocpm-policyds-hook-name-pre-install" . }}
+          env:
+          - name: LOGGING_LEVEL_APP
+            value: INFO
+          - name: APPLICATION_NAME
+            value: {{ .Values.appName | quote }}
+          - name: MICROSERVICE_NAME
+            value: {{ template  "policyds.fullname" .}}
+          - name: ENGINEERING_VERSION
+            value: {{ .Chart.Version | quote }}
+          - name: MARKETING_VERSION
+            value: {{ .Chart.AppVersion | quote }}
+          - name: LOG4J2_BURST_RATE
+            value: {{ .Values.logging.burst.rate | quote }}
+          - name: LOG4J2_BURST_MAX
+            value: {{ .Values.logging.burst.max | quote }}
+          - name: HOOK_TYPE
+            value: pre-install
+          - name: HOOK_VERSION
+            value: {{ .Chart.Version | quote}}
+          - name: HOOK_CONFIG_KEY
+            value: "public.hook.policyds"
+          - name: CFG_SERVER_URL
+            value: "http://127.0.0.1:{{ .Values.global.containerPorts.configContainerSignalingHttp }}"
+          - name: CFG_SERVER_READINESS_URL
+            value: "http://127.0.0.1:{{ .Values.global.containerPorts.configContainerSignalingHttp }}/topics"
+          - name: CFG_SERVER_SHUTDOWN_URL
+            value: "http://127.0.0.1:{{ .Values.global.containerPorts.configContainerSignalingHttp }}/shutdown"
+          - name: NF_INSTANCE_ID
+            value: {{ .Values.global.nfInstanceId | quote }}
+          - name: SERVICE_MESH_CHECK
+            value: {{ .Values.global.serviceMeshEnabled | quote }}
+          - name: ISTIO_SIDECAR_QUIT_URL
+            value: {{ .Values.global.istioSidecarQuitUrl }}
+          - name: ISTIO_SIDECAR_READY_URL
+            value: {{ .Values.global.istioSidecarReadyUrl }}
+          - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+            value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+          - name: DB_ENGINE
+            value: {{ .Values.dbConfig.dbEngine }}
+          - name: MYSQL_RELEASE_DATABASE
+            value: {{ .Values.global.releaseDbName | quote }}
+          - name: MYSQL_CONFIG_DATABASE
+            value: {{ .Values.envMysqlDatabaseConfigServer | quote }}
+          - name: MYSQL_DATABASE
+            value: {{ .Values.envMysqlDatabase | quote }}
+          - name: MYSQL_HOST
+            value: {{ .Values.global.envMysqlHost | quote }}
+          - name: MYSQL_PORT
+            value: {{ .Values.global.envMysqlPort | quote }}
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.global.privilegedDbCredSecretName }}
+                key: mysql-password
+          - name: MYSQL_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.global.privilegedDbCredSecretName }}
+                key: mysql-username
+          {{- range $key, $val := .Values.dependencyLogging }}
+          - name: {{ $key | quote }}
+            value: {{ $val.value | quote }}
+          {{- end }}
+          {{- if .Values.imageTag }}
+          image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+          {{- else }}
+          image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+          {{- end }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          resources:
+{{ toYaml .Values.global.hookJobResources | indent 14 }}
+        - name: {{ template "config-server-container" . }}
+          env:
+          - name: LOGGING_LEVEL_APP
+            value: INFO
+          - name: CFG_SERVER_HOST
+            value: "127.0.0.1"
+          - name: CFG_SERVER_PORT
+            value: {{ .Values.global.containerPorts.configContainerSignalingHttp | quote }}
+          - name: JAEGER_AGENT_HOST
+            value: {{ .Values.global.envJaegerAgentHost | quote }}
+          - name: JAEGER_AGENT_PORT
+            value: {{ .Values.global.envJaegerAgentPort | quote }}
+          - name: JAEGER_SERVICE_NAME
+            value: {{ template "config-server-container" . }}
+          - name: JAEGER_SAMPLER_PARAM
+            value: {{ .Values.envJaegerSamplerParam | quote }}
+          - name: JAEGER_SAMPLER_TYPE
+            value: {{ .Values.envJaegerSamplerType | quote }}
+          - name: MYSQL_DATABASE
+            value: {{ .Values.envMysqlDatabaseConfigServer | quote }}
+          - name: MYSQL_HOST
+            value: {{ .Values.global.envMysqlHost | quote }}
+          - name: MYSQL_PORT
+            value: {{ .Values.global.envMysqlPort | quote }}
+          - name: SERVICE_MESH_CHECK
+            value: {{ .Values.global.serviceMeshEnabled | quote }}
+          - name: ISTIO_SIDECAR_QUIT_URL
+            value: {{ .Values.global.istioSidecarQuitUrl }}
+          - name: ISTIO_SIDECAR_READY_URL
+            value: {{ .Values.global.istioSidecarReadyUrl }}
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.global.dbCredSecretName }}
+                key: mysql-password
+          - name: MYSQL_USER
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.global.dbCredSecretName }}
+                key: mysql-username
+          - name: APPLICATION_NAME
+            value: {{ .Values.appName | quote }}
+          - name: MICROSERVICE_NAME
+            value: {{ template "config-server-container" . }}
+          - name: ENGINEERING_VERSION
+            value: {{ .Chart.Version | quote }}
+          - name: MARKETING_VERSION
+            value: {{ .Chart.AppVersion | quote }}
+          {{- range $logger := .Values.dependenciesLogging }}
+          - name: {{ $logger.name | quote }}
+            value: {{ $logger.value | quote }}
+          {{- end }}
+          - name: LOG4J2_BURST_RATE
+            value: {{ .Values.logging.burst.rate | quote }}
+          - name: LOG4J2_BURST_MAX
+            value: {{ .Values.logging.burst.max | quote }}
+          - name: LOG4J2_LOCATION_INFO
+            value: {{ .Values.logging.locationInfo | quote }}
+          - name: LOG4J2_CONSOLE_FORMAT
+            value: {{ .Values.logging.consoleFormat | quote }}
+          - name: MONITORING_PORT
+            value: {{ .Values.global.containerPorts.configContainerMonitoringHttp | quote }}
+          - name: SIGNALING_PORT
+            value: {{ .Values.global.containerPorts.configContainerSignalingHttp | quote }}
+          - name: LOCK_RETRY_MAX
+            value: {{ .Values.persistence.lock.retryLimit | quote }}
+          - name: LOCK_RETRY_INTERVAL
+            value: {{ .Values.persistence.lock.retryInterval | quote }}
+          {{- if .Values.imageTag }}
+          image: "{{ .Values.global.dockerRegistry }}/{{ .Values.configserverContainerImage }}:{{ .Values.configserverContainerImageTag }}"
+          {{- else }}
+          image: "{{ .Values.global.dockerRegistry }}/{{ .Values.configserverContainerImage }}:{{ .Values.global.imageTag }}"
+          {{- end }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          resources:
+{{ toYaml .Values.global.hookJobResources | indent 14 }}
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "ocpm-policyds-hook-name-post-install" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "post-install"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "ocpm-policyds-hook-name-post-install" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+      - env:
+        - name: LOGGING_LEVEL_APP
+          value: INFO
+        - name: APPLICATION_NAME
+          value: {{ .Values.appName | quote }}
+        - name: MICROSERVICE_NAME
+          value: {{ template  "policyds.fullname" .}}
+        - name: ENGINEERING_VERSION
+          value: {{ .Chart.Version | quote }}
+        - name: MARKETING_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: LOG4J2_BURST_RATE
+          value: {{ .Values.logging.burst.rate | quote }}
+        - name: LOG4J2_BURST_MAX
+          value: {{ .Values.logging.burst.max | quote }}
+        - name: HOOK_TYPE
+          value: post-install
+        - name: HOOK_VERSION
+          value: {{ .Chart.Version | quote}}
+        - name: HOOK_CONFIG_KEY
+          value: "public.hook.policyds"
+        - name: NF_INSTANCE_ID
+          value: {{ .Values.global.nfInstanceId | quote }}
+        - name: SERVICE_MESH_CHECK
+          value: {{ .Values.global.serviceMeshEnabled | quote }}         
+        - name: ISTIO_SIDECAR_QUIT_URL
+          value: {{ .Values.global.istioSidecarQuitUrl }}
+        - name: ISTIO_SIDECAR_READY_URL
+          value: {{ .Values.global.istioSidecarReadyUrl }}
+        - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+          value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+        - name: DB_ENGINE
+          value: {{ .Values.dbConfig.dbEngine }}
+        - name: MYSQL_RELEASE_DATABASE
+          value: {{ .Values.global.releaseDbName | quote }}
+        - name: MYSQL_CONFIG_DATABASE
+          value: {{ .Values.envMysqlDatabaseConfigServer | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ .Values.envMysqlDatabase | quote }}
+        - name: MYSQL_HOST
+          value: {{ .Values.global.envMysqlHost | quote }}
+        - name: MYSQL_PORT
+          value: {{ .Values.global.envMysqlPort | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-password
+        - name: MYSQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-username
+        {{- range $key, $val := .Values.dependencyLogging }}
+        - name: {{ $key | quote }}
+          value: {{ $val.value | quote }}
+        {{- end }}
+        name: {{ template "ocpm-policyds-hook-name-post-install" . }}
+        {{- if .Values.imageTag }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+        {{- else }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+        {{- end }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        resources:
+{{ toYaml .Values.global.hookJobResources | indent 10 }}
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "ocpm-policyds-hook-name-pre-upgrade" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "pre-upgrade"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "ocpm-policyds-hook-name-pre-upgrade" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+        - env:
+          - name: LOGGING_LEVEL_APP
+            value: INFO
+          - name: APPLICATION_NAME
+            value: {{ .Values.appName | quote }}
+          - name: MICROSERVICE_NAME
+            value: {{ template  "policyds.fullname" .}}
+          - name: ENGINEERING_VERSION
+            value: {{ .Chart.Version | quote }}
+          - name: MARKETING_VERSION
+            value: {{ .Chart.AppVersion | quote }}
+          - name: LOG4J2_BURST_RATE
+            value: {{ .Values.logging.burst.rate | quote }}
+          - name: LOG4J2_BURST_MAX
+            value: {{ .Values.logging.burst.max | quote }}
+          - name: HOOK_TYPE
+            value: pre-upgrade
+          - name: HOOK_VERSION
+            value: {{ .Chart.Version | quote}}
+          - name: HOOK_CONFIG_KEY
+            value: "public.hook.policyds"
+          - name: CFG_SERVER_URL
+            value: "http://127.0.0.1:{{ .Values.global.containerPorts.configContainerSignalingHttp }}"
+          - name: CFG_SERVER_READINESS_URL
+            value: "http://127.0.0.1:{{ .Values.global.containerPorts.configContainerSignalingHttp }}/topics"
+          - name: CFG_SERVER_SHUTDOWN_URL
+            value: "http://127.0.0.1:{{ .Values.global.containerPorts.configContainerSignalingHttp }}/shutdown"
+          - name: NF_INSTANCE_ID
+            value: {{ .Values.global.nfInstanceId | quote }}
+          - name: SERVICE_MESH_CHECK
+            value: {{ .Values.global.serviceMeshEnabled | quote }}
+          - name: ISTIO_SIDECAR_QUIT_URL
+            value: {{ .Values.global.istioSidecarQuitUrl }}
+          - name: ISTIO_SIDECAR_READY_URL
+            value: {{ .Values.global.istioSidecarReadyUrl }}
+          - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+            value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+          - name: DB_ENGINE
+            value: {{ .Values.dbConfig.dbEngine }}
+          - name: MYSQL_RELEASE_DATABASE
+            value: {{ .Values.global.releaseDbName | quote }}
+          - name: MYSQL_CONFIG_DATABASE
+            value: {{ .Values.envMysqlDatabaseConfigServer | quote }}
+          - name: MYSQL_DATABASE
+            value: {{ .Values.envMysqlDatabase | quote }}
+          - name: MYSQL_HOST
+            value: {{ .Values.global.envMysqlHost | quote }}
+          - name: MYSQL_PORT
+            value: {{ .Values.global.envMysqlPort | quote }}
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.global.privilegedDbCredSecretName }}
+                key: mysql-password
+          - name: MYSQL_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.global.privilegedDbCredSecretName }}
+                key: mysql-username
+          {{- range $key, $val := .Values.dependencyLogging }}
+          - name: {{ $key | quote }}
+            value: {{ $val.value | quote }}
+          {{- end }}
+          name: {{ template "ocpm-policyds-hook-name-pre-upgrade" . }}
+          {{- if .Values.imageTag }}
+          image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+          {{- else }}
+          image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+          {{- end }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          resources:
+{{ toYaml .Values.global.hookJobResources | indent 14 }}
+        - name: {{ template "config-server-container" . }}
+          env:
+          - name: LOGGING_LEVEL_APP
+            value: INFO
+          - name: CFG_SERVER_HOST
+            value: "127.0.0.1"
+          - name: CFG_SERVER_PORT
+            value: {{ .Values.global.containerPorts.configContainerSignalingHttp | quote }}
+          - name: JAEGER_AGENT_HOST
+            value: {{ .Values.global.envJaegerAgentHost | quote }}
+          - name: JAEGER_AGENT_PORT
+            value: {{ .Values.global.envJaegerAgentPort | quote }}
+          - name: JAEGER_SERVICE_NAME
+            value: {{ template "config-server-container" . }}
+          - name: JAEGER_SAMPLER_PARAM
+            value: {{ .Values.envJaegerSamplerParam | quote }}
+          - name: JAEGER_SAMPLER_TYPE
+            value: {{ .Values.envJaegerSamplerType | quote }}
+          - name: MYSQL_DATABASE
+            value: {{ .Values.envMysqlDatabaseConfigServer | quote }}
+          - name: MYSQL_HOST
+            value: {{ .Values.global.envMysqlHost | quote }}
+          - name: MYSQL_PORT
+            value: {{ .Values.global.envMysqlPort | quote }}
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.global.dbCredSecretName }}
+                key: mysql-password
+          - name: MYSQL_USER
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.global.dbCredSecretName }}
+                key: mysql-username
+          - name: APPLICATION_NAME
+            value: {{ .Values.appName | quote }}
+          - name: MICROSERVICE_NAME
+            value: {{ template "config-server-container" . }}
+          - name: ENGINEERING_VERSION
+            value: {{ .Chart.Version | quote }}
+          - name: MARKETING_VERSION
+            value: {{ .Chart.AppVersion | quote }}
+          {{- range $logger := .Values.dependenciesLogging }}
+          - name: {{ $logger.name | quote }}
+            value: {{ $logger.value | quote }}
+          {{- end }}
+          - name: LOG4J2_BURST_RATE
+            value: {{ .Values.logging.burst.rate | quote }}
+          - name: LOG4J2_BURST_MAX
+            value: {{ .Values.logging.burst.max | quote }}
+          - name: LOG4J2_LOCATION_INFO
+            value: {{ .Values.logging.locationInfo | quote }}
+          - name: LOG4J2_CONSOLE_FORMAT
+            value: {{ .Values.logging.consoleFormat | quote }}
+          - name: SERVICE_MESH_CHECK
+            value: {{ .Values.global.serviceMeshEnabled | quote }}
+          - name: ISTIO_SIDECAR_QUIT_URL
+            value: {{ .Values.global.istioSidecarQuitUrl }}
+          - name: ISTIO_SIDECAR_READY_URL
+            value: {{ .Values.global.istioSidecarReadyUrl }}
+          - name: MONITORING_PORT
+            value: {{ .Values.global.containerPorts.configContainerMonitoringHttp | quote }}
+          - name: SIGNALING_PORT
+            value: {{ .Values.global.containerPorts.configContainerSignalingHttp | quote }}
+          - name: LOCK_RETRY_MAX
+            value: {{ .Values.persistence.lock.retryLimit | quote }}
+          - name: LOCK_RETRY_INTERVAL
+            value: {{ .Values.persistence.lock.retryInterval | quote }}
+          {{- if .Values.imageTag }}
+          image: "{{ .Values.global.dockerRegistry }}/{{ .Values.configserverContainerImage }}:{{ .Values.configserverContainerImageTag }}"
+          {{- else }}
+          image: "{{ .Values.global.dockerRegistry }}/{{ .Values.configserverContainerImage }}:{{ .Values.global.imageTag }}"
+          {{- end }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          resources:
+{{ toYaml .Values.global.hookJobResources | indent 14 }}
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "ocpm-policyds-hook-name-post-upgrade" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "post-upgrade"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "ocpm-policyds-hook-name-post-upgrade" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+      - env:
+        - name: LOGGING_LEVEL_APP
+          value: INFO
+        - name: APPLICATION_NAME
+          value: {{ .Values.appName | quote }}
+        - name: MICROSERVICE_NAME
+          value: {{ template  "policyds.fullname" .}}
+        - name: ENGINEERING_VERSION
+          value: {{ .Chart.Version | quote }}
+        - name: MARKETING_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: LOG4J2_BURST_RATE
+          value: {{ .Values.logging.burst.rate | quote }}
+        - name: LOG4J2_BURST_MAX
+          value: {{ .Values.logging.burst.max | quote }}
+        - name: HOOK_TYPE
+          value: post-upgrade
+        - name: HOOK_VERSION
+          value: {{ .Chart.Version | quote}}
+        - name: HOOK_CONFIG_KEY
+          value: "public.hook.policyds"
+        - name: NF_INSTANCE_ID
+          value: {{ .Values.global.nfInstanceId | quote }}
+        - name: SERVICE_MESH_CHECK
+          value: {{ .Values.global.serviceMeshEnabled | quote }}         
+        - name: ISTIO_SIDECAR_QUIT_URL
+          value: {{ .Values.global.istioSidecarQuitUrl }}
+        - name: ISTIO_SIDECAR_READY_URL
+          value: {{ .Values.global.istioSidecarReadyUrl }}
+        - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+          value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+        - name: DB_ENGINE
+          value: {{ .Values.dbConfig.dbEngine }}
+        - name: MYSQL_RELEASE_DATABASE
+          value: {{ .Values.global.releaseDbName | quote }}
+        - name: MYSQL_CONFIG_DATABASE
+          value: {{ .Values.envMysqlDatabaseConfigServer | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ .Values.envMysqlDatabase | quote }}
+        - name: MYSQL_HOST
+          value: {{ .Values.global.envMysqlHost | quote }}
+        - name: MYSQL_PORT
+          value: {{ .Values.global.envMysqlPort | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-password
+        - name: MYSQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-username
+        {{- range $key, $val := .Values.dependencyLogging }}
+        - name: {{ $key | quote }}
+          value: {{ $val.value | quote }}
+        {{- end }}
+        name: {{ template "ocpm-policyds-hook-name-post-upgrade" . }}
+        {{- if .Values.imageTag }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+        {{- else }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+        {{- end }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        resources:
+{{ toYaml .Values.global.hookJobResources | indent 10 }}
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "ocpm-policyds-hook-name-pre-rollback" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "pre-rollback"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "ocpm-policyds-hook-name-pre-rollback" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+      - env:
+        - name: LOGGING_LEVEL_APP
+          value: INFO
+        - name: APPLICATION_NAME
+          value: {{ .Values.appName | quote }}
+        - name: MICROSERVICE_NAME
+          value: {{ template  "policyds.fullname" .}}
+        - name: ENGINEERING_VERSION
+          value: {{ .Chart.Version | quote }}
+        - name: MARKETING_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: LOG4J2_BURST_RATE
+          value: {{ .Values.logging.burst.rate | quote }}
+        - name: LOG4J2_BURST_MAX
+          value: {{ .Values.logging.burst.max | quote }}
+        - name: HOOK_TYPE
+          value: pre-rollback
+        - name: HOOK_VERSION
+          value: {{ .Chart.Version | quote}}
+        - name: HOOK_CONFIG_KEY
+          value: "public.hook.policyds"
+        - name: NF_INSTANCE_ID
+          value: {{ .Values.global.nfInstanceId | quote }}
+        - name: SERVICE_MESH_CHECK
+          value: {{ .Values.global.serviceMeshEnabled | quote }}         
+        - name: ISTIO_SIDECAR_QUIT_URL
+          value: {{ .Values.global.istioSidecarQuitUrl }}
+        - name: ISTIO_SIDECAR_READY_URL
+          value: {{ .Values.global.istioSidecarReadyUrl }}
+        - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+          value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+        - name: DB_ENGINE
+          value: {{ .Values.dbConfig.dbEngine }}
+        - name: MYSQL_RELEASE_DATABASE
+          value: {{ .Values.global.releaseDbName | quote }}
+        - name: MYSQL_CONFIG_DATABASE
+          value: {{ .Values.envMysqlDatabaseConfigServer | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ .Values.envMysqlDatabase | quote }}
+        - name: MYSQL_HOST
+          value: {{ .Values.global.envMysqlHost | quote }}
+        - name: MYSQL_PORT
+          value: {{ .Values.global.envMysqlPort | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-password
+        - name: MYSQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-username
+        {{- range $key, $val := .Values.dependencyLogging }}
+        - name: {{ $key | quote }}
+          value: {{ $val.value | quote }}
+        {{- end }}
+        name: {{ template "ocpm-policyds-hook-name-pre-rollback" . }}
+        {{- if .Values.imageTag }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+        {{- else }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+        {{- end }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        resources:
+{{ toYaml .Values.global.hookJobResources | indent 10 }}
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "ocpm-policyds-hook-name-post-rollback" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "post-rollback"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "ocpm-policyds-hook-name-post-rollback" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+      - env:
+        - name: LOGGING_LEVEL_APP
+          value: INFO
+        - name: APPLICATION_NAME
+          value: {{ .Values.appName | quote }}
+        - name: MICROSERVICE_NAME
+          value: {{ template  "policyds.fullname" .}}
+        - name: ENGINEERING_VERSION
+          value: {{ .Chart.Version | quote }}
+        - name: MARKETING_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: LOG4J2_BURST_RATE
+          value: {{ .Values.logging.burst.rate | quote }}
+        - name: LOG4J2_BURST_MAX
+          value: {{ .Values.logging.burst.max | quote }}
+        - name: HOOK_TYPE
+          value: post-rollback
+        - name: HOOK_VERSION
+          value: {{ .Chart.Version | quote}}
+        - name: HOOK_CONFIG_KEY
+          value: "public.hook.policyds"
+        - name: NF_INSTANCE_ID
+          value: {{ .Values.global.nfInstanceId | quote }}
+        - name: SERVICE_MESH_CHECK
+          value: {{ .Values.global.serviceMeshEnabled | quote }}         
+        - name: ISTIO_SIDECAR_QUIT_URL
+          value: {{ .Values.global.istioSidecarQuitUrl }}
+        - name: ISTIO_SIDECAR_READY_URL
+          value: {{ .Values.global.istioSidecarReadyUrl }}
+        - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+          value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+        - name: DB_ENGINE
+          value: {{ .Values.dbConfig.dbEngine }}
+        - name: MYSQL_RELEASE_DATABASE
+          value: {{ .Values.global.releaseDbName | quote }}
+        - name: MYSQL_CONFIG_DATABASE
+          value: {{ .Values.envMysqlDatabaseConfigServer | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ .Values.envMysqlDatabase | quote }}
+        - name: MYSQL_HOST
+          value: {{ .Values.global.envMysqlHost | quote }}
+        - name: MYSQL_PORT
+          value: {{ .Values.global.envMysqlPort | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-password
+        - name: MYSQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-username
+        {{- range $key, $val := .Values.dependencyLogging }}
+        - name: {{ $key | quote }}
+          value: {{ $val.value | quote }}
+        {{- end }}
+        name: {{ template "ocpm-policyds-hook-name-post-rollback" . }}
+        {{- if .Values.imageTag }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+        {{- else }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+        {{- end }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        resources:
+{{ toYaml .Values.global.hookJobResources | indent 10 }}
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "ocpm-policyds-hook-name-pre-delete" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "pre-delete"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "ocpm-policyds-hook-name-pre-delete" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+      - env:
+        - name: LOGGING_LEVEL_APP
+          value: INFO
+        - name: APPLICATION_NAME
+          value: {{ .Values.appName | quote }}
+        - name: MICROSERVICE_NAME
+          value: {{ template  "policyds.fullname" .}}
+        - name: ENGINEERING_VERSION
+          value: {{ .Chart.Version | quote }}
+        - name: MARKETING_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: LOG4J2_BURST_RATE
+          value: {{ .Values.logging.burst.rate | quote }}
+        - name: LOG4J2_BURST_MAX
+          value: {{ .Values.logging.burst.max | quote }}
+        - name: HOOK_TYPE
+          value: pre-delete
+        - name: HOOK_VERSION
+          value: {{ .Chart.Version | quote}}
+        - name: HOOK_CONFIG_KEY
+          value: "public.hook.policyds"
+        - name: NF_INSTANCE_ID
+          value: {{ .Values.global.nfInstanceId | quote }}
+        - name: SERVICE_MESH_CHECK
+          value: {{ .Values.global.serviceMeshEnabled | quote }}         
+        - name: ISTIO_SIDECAR_QUIT_URL
+          value: {{ .Values.global.istioSidecarQuitUrl }}
+        - name: ISTIO_SIDECAR_READY_URL
+          value: {{ .Values.global.istioSidecarReadyUrl }}
+        - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+          value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+        - name: DB_ENGINE
+          value: {{ .Values.dbConfig.dbEngine }}
+        - name: MYSQL_RELEASE_DATABASE
+          value: {{ .Values.global.releaseDbName | quote }}
+        - name: MYSQL_CONFIG_DATABASE
+          value: {{ .Values.envMysqlDatabaseConfigServer | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ .Values.envMysqlDatabase | quote }}
+        - name: MYSQL_HOST
+          value: {{ .Values.global.envMysqlHost | quote }}
+        - name: MYSQL_PORT
+          value: {{ .Values.global.envMysqlPort | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-password
+        - name: MYSQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-username
+        {{- range $key, $val := .Values.dependencyLogging }}
+        - name: {{ $key | quote }}
+          value: {{ $val.value | quote }}
+        {{- end }}
+        name: {{ template "ocpm-policyds-hook-name-pre-delete" . }}
+        {{- if .Values.imageTag }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+        {{- else }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+        {{- end }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        resources:
+{{ toYaml .Values.global.hookJobResources | indent 10 }}
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "ocpm-policyds-hook-name-post-delete" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "post-delete"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "ocpm-policyds-hook-name-post-delete" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+      - env:
+        - name: LOGGING_LEVEL_APP
+          value: INFO
+        - name: APPLICATION_NAME
+          value: {{ .Values.appName | quote }}
+        - name: MICROSERVICE_NAME
+          value: {{ template  "policyds.fullname" .}}
+        - name: ENGINEERING_VERSION
+          value: {{ .Chart.Version | quote }}
+        - name: MARKETING_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: LOG4J2_BURST_RATE
+          value: {{ .Values.logging.burst.rate | quote }}
+        - name: LOG4J2_BURST_MAX
+          value: {{ .Values.logging.burst.max | quote }}
+        - name: HOOK_TYPE
+          value: post-delete
+        - name: HOOK_VERSION
+          value: {{ .Chart.Version | quote}}
+        - name: HOOK_CONFIG_KEY
+          value: "public.hook.policyds"
+        - name: NF_INSTANCE_ID
+          value: {{ .Values.global.nfInstanceId | quote }}
+        - name: SERVICE_MESH_CHECK
+          value: {{ .Values.global.serviceMeshEnabled | quote }}         
+        - name: ISTIO_SIDECAR_QUIT_URL
+          value: {{ .Values.global.istioSidecarQuitUrl }}
+        - name: ISTIO_SIDECAR_READY_URL
+          value: {{ .Values.global.istioSidecarReadyUrl }}
+        - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+          value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+        - name: DB_ENGINE
+          value: {{ .Values.dbConfig.dbEngine }}
+        - name: MYSQL_RELEASE_DATABASE
+          value: {{ .Values.global.releaseDbName | quote }}
+        - name: MYSQL_CONFIG_DATABASE
+          value: {{ .Values.envMysqlDatabaseConfigServer | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ .Values.envMysqlDatabase | quote }}
+        - name: MYSQL_HOST
+          value: {{ .Values.global.envMysqlHost | quote }}
+        - name: MYSQL_PORT
+          value: {{ .Values.global.envMysqlPort | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-password
+        - name: MYSQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-username
+        {{- range $key, $val := .Values.dependencyLogging }}
+        - name: {{ $key | quote }}
+          value: {{ $val.value | quote }}
+        {{- end }}
+        name: {{ template "ocpm-policyds-hook-name-post-delete" . }}
+        {{- if .Values.imageTag }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+        {{- else }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+        {{- end }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        resources:
+{{ toYaml .Values.global.hookJobResources | indent 10 }}
+{{- end }}
+
+

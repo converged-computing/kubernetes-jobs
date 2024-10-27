@@ -1,0 +1,521 @@
+---
+https://linuxacademy.com/cp/courses/lesson/course/3724/lesson/4/module/305
+Lecture: Jobs and CronJobs
+
+https://kubernetes.io/docs/concepts/workloads/controllers/jobs-run-to-completion/
+https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/
+https://kubernetes.io/docs/tasks/job/automated-tasks-with-cron-jobs/
+
+
+This Job calculates the first 2000 digits of pi.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pi
+spec:
+  template:
+    spec:
+      containers:
+      - name: pi
+        image: perl
+        command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+      restartPolicy: Never
+  backoffLimit: 4
+
+kubectl get jobs
+
+Here is a CronJob that prints some text to the console every minute.
+
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: hello
+spec:
+  schedule: "*/1 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: hello
+            image: busybox
+            args:
+            - /bin/sh
+            - -c
+            - date; echo Hello from the Kubernetes cluster
+          restartPolicy: OnFailure
+
+
+
+You can use kubectl get to list and check the status of CronJobs.
+
+kubectl get cronjobs
+
+
+---
+
+https://kubernetes.io/docs/concepts/workloads/controllers/jobs-run-to-completion/
+
+Jobs-Run to Completion
+
+
+A Job creates one or more Pods and ensures that a specified number of them successfully terminate. 
+As pods successfully complete, the Job tracks the successful completions. 
+When a specified number of successful completions is reached, the task (ie, Job) is complete. 
+Deleting a Job will clean up the Pods it created.
+
+
+Running an example Job
+Writing a Job Spec
+Handling Pod and Container Failures
+Job Termination and Cleanup
+Clean Up Finished Jobs Automatically
+Job Patterns
+Advanced Usage
+Alternatives
+Cron Jobs
+
+
+Running an example Job
+
+Here is an example Job config. It computes π to 2000 places and prints it out. 
+It takes around 10s to complete
+
+
+cat job.yaml
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pi
+spec:
+  template:
+    spec:
+      containers:
+      - name: pi
+        image: perl
+        command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+      restartPolicy: Never
+  backoffLimit: 4
+
+
+
+You can run the example with this command:
+
+kubectl apply -f https://k8s.io/examples/controllers/job.yaml
+
+
+pods=$(kubectl get pods --selector=job-name=pi --output=jsonpath='{.items[*].metadata.name}')
+echo $pods
+
+
+Writing a Job Spec
+
+
+As with all other Kubernetes config, a Job needs apiVersion, kind, and metadata fields.
+
+A Job also needs a .spec section.
+
+Pod Template
+The .spec.template is the only required field of the .spec.
+
+The .spec.template is a pod template. It has exactly the same schema as a pod, 
+except it is nested and does not have an apiVersion or kind.
+
+In addition to required fields for a Pod, a pod template in a Job 
+must specify appropriate labels (see pod selector) and an appropriate restart policy.
+
+Only a RestartPolicy equal to Never or OnFailure is allowed.
+
+
+Pod Selector
+The .spec.selector field is optional. In almost all cases you should not specify it. 
+See section specifying your own pod selector.
+
+Parallel Jobs
+There are three main types of task suitable to run as a Job:
+
+Non-parallel Jobs
+normally, only one Pod is started, unless the Pod fails.
+the Job is complete as soon as its Pod terminates successfully.
+Parallel Jobs with a fixed completion count:
+specify a non-zero positive value for .spec.completions.
+the Job represents the overall task, and is complete when there is one 
+successful Pod for each value in the range 1 to .spec.completions.
+not implemented yet: Each Pod is passed a different index in the range 1 to .spec.completions.
+Parallel Jobs with a work queue:
+do not specify .spec.completions, default to .spec.parallelism.
+the Pods must coordinate amongst themselves or an external service to 
+determine what each should work on. For example, a Pod might fetch a batch of up to N items from the work queue.
+each Pod is independently capable of determining whether or not all its peers are done,
+and thus that the entire Job is done.
+when any Pod from the Job terminates with success, no new Pods are created.
+once at least one Pod has terminated with success and all Pods are terminated,
+then the Job is completed with success.
+once any Pod has exited with success, no other Pod should still be doing any work
+for this task or writing any output. They should all be in the process of exiting.
+For a non-parallel Job, you can leave both .spec.completions and .spec.parallelism unset. 
+When both are unset, both are defaulted to 1.
+
+For a fixed completion count Job, you should set .spec.completions to 
+the number of completions needed. You can set .spec.parallelism, or leave it unset and it will default to 1.
+
+For a work queue Job, you must leave .spec.completions unset, and set .spec.parallelism to a non-negative integer.
+
+For more information about how to make use of the different types of job, see the job patterns section.
+
+
+Controlling Parallelism
+The requested parallelism (.spec.parallelism) can be set to any non-negative value.
+If it is unspecified, it defaults to 1. If it is specified as 0, then the Job is effectively paused until it is increased.
+
+Actual parallelism (number of pods running at any instant) may be more or
+less than requested parallelism, for a variety of reasons:
+
+For fixed completion count Jobs, the actual number of pods running in parallel will not 
+exceed the number of remaining completions. Higher values of .spec.parallelism are effectively ignored.
+For work queue Jobs, no new Pods are started after any Pod has succeeded – remaining Pods are allowed to complete, however.
+If the controller has not had time to react.
+If the controller failed to create Pods for any reason (lack of ResourceQuota, lack of permission, etc.),
+then there may be fewer pods than requested.
+
+Handling Pod and Container Failures
+
+A container in a Pod may fail for a number of reasons, such as because the process
+in it exited with a non-zero exit code, or the container was killed for exceeding a memory limit, etc. 
+If this happens, and the .spec.template.spec.restartPolicy = "OnFailure", then the Pod stays on the node,
+but the container is re-run. Therefore, your program needs to handle the case when it is restarted locally,
+or else specify .spec.template.spec.restartPolicy = "Never". See pod lifecycle for more information on restartPolicy
+
+
+An entire Pod can also fail, for a number of reasons, such as when the pod is kicked
+off the node (node is upgraded, rebooted, deleted, etc.), or if a container of the 
+Pod fails and the .spec.template.spec.restartPolicy = "Never". When a Pod fails, 
+then the Job controller starts a new Pod. This means that your application needs 
+to handle the case when it is restarted in a new pod. In particular, it needs
+to handle temporary files, locks, incomplete output and the like caused by previous runs.
+
+Note that even if you specify .spec.parallelism = 1 and .spec.completions = 1 
+and .spec.template.spec.restartPolicy = "Never", the same program may sometimes be started twice.
+
+If you do specify .spec.parallelism and .spec.completions both greater than 1,
+then there may be multiple pods running at once. Therefore, your pods must also be tolerant of concurrency
+
+
+
+Pod backoff failure policy
+There are situations where you want to fail a Job after some amount of retries
+due to a logical error in configuration etc. To do so, set .spec.backoffLimit to specify
+the number of retries before considering a Job as failed. The back-off limit is set by default to 6.
+Failed Pods associated with the Job are recreated by the Job controller with
+an exponential back-off delay (10s, 20s, 40s …) capped at six minutes.
+The back-off count is reset if no new failed Pods appear before the Job’s next status check.
+
+Note that a Job’s .spec.activeDeadlineSeconds takes precedence over its 
+.spec.backoffLimit. Therefore, a Job that is retrying one or more failed Pods will not deploy
+additional Pods once it reaches the time limit specified by activeDeadlineSeconds,
+even if the backoffLimit is not yet reached.
+
+Example:
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pi-with-timeout
+spec:
+  backoffLimit: 5
+  activeDeadlineSeconds: 100
+  template:
+    spec:
+      containers:
+      - name: pi
+        image: perl
+        command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+      restartPolicy: Never
+Note that both the Job spec and the Pod template spec within the Job have an activeDeadlineSeconds field.
+Ensure that you set this field at the proper level.
+
+
+Clean Up Finished Jobs Automatically
+Finished Jobs are usually no longer needed in the system. Keeping them around in the system will put 
+pressure on the API server. If the Jobs are managed directly by a higher level controller, such as CronJobs,
+the Jobs can be cleaned up by CronJobs based on the specified capacity-based cleanup policy.
+
+
+TTL Mechanism for Finished Jobs
+FEATURE STATE: Kubernetes v1.12 alpha
+Another way to clean up finished Jobs (either Complete or Failed) automatically
+is to use a TTL mechanism provided by a TTL controller for finished resources, 
+by specifying the .spec.ttlSecondsAfterFinished field of the Job.
+
+When the TTL controller cleans up the Job, it will delete the Job cascadingly, i.e. 
+delete its dependent objects, such as Pods, together with the Job. Note that when
+the Job is deleted, its lifecycle guarantees, such as finalizers, will be honored.
+
+For example:
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pi-with-ttl
+spec:
+  ttlSecondsAfterFinished: 100
+  template:
+    spec:
+      containers:
+      - name: pi
+        image: perl
+        command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+      restartPolicy: Never
+The Job pi-with-ttl will be eligible to be automatically deleted, 100 seconds after it finishes.
+
+If the field is set to 0, the Job will be eligible to be automatically deleted
+immediately after it finishes. If the field is unset, this Job won’t be cleaned up by the
+TTL controller after it finishes.
+
+Note that this TTL mechanism is alpha, with feature gate TTLAfterFinished. 
+For more information, see the documentation for TTL controller for finished resources
+
+
+---
+
+
+https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/
+
+A Cron Job creates Jobs on a time-based schedule.
+
+One CronJob object is like one line of a crontab (cron table) file. It runs a job periodically 
+on a given schedule, written in Cron format.
+
+Cron Job Limitations
+A cron job creates a job object about once per execution time of its schedule.
+We say “about” because there are certain circumstances where two jobs might be created,
+or no job might be created. We attempt to make these rare, but do not completely prevent them.
+Therefore, jobs should be idempotent.
+
+If startingDeadlineSeconds is set to a large value or left unset (the default) and 
+if concurrencyPolicy is set to Allow, the jobs will always run at least once.
+
+For every CronJob, the CronJob controller checks how many schedules it missed in 
+the duration from its last scheduled time until now. If there are more than 100 missed schedules,
+then it does not start the job and logs the error
+
+It is important to note that if the startingDeadlineSeconds field is set (not nil),
+the controller counts how many missed jobs occurred from the value of startingDeadlineSeconds
+until now rather than from the last scheduled time until now. For example, 
+if startingDeadlineSeconds is 200, the controller counts how many missed jobs occurred in the last 200 seconds.
+
+A CronJob is counted as missed if it has failed to be created at its scheduled time.
+For example, If concurrencyPolicy is set to Forbid and a CronJob was attempted to be 
+scheduled when there was a previous schedule still running, then it would count as missed.
+
+For example, suppose a CronJob is set to schedule a new Job every one minute beginning at 08:30:00,
+and its startingDeadlineSeconds field is not set. If the CronJob controller happens to be
+down from 08:29:00 to 10:21:00, the job will not start as the number of missed jobs which missed
+their schedule is greater than 100.
+
+
+---
+
+https://kubernetes.io/docs/tasks/job/automated-tasks-with-cron-jobs/
+
+You can use CronJobs to run jobs on a time-based schedule. These automated jobs run
+like Cron tasks on a Linux or UNIX system.
+
+Cron jobs are useful for creating periodic and recurring tasks, like running backups
+or sending emails. Cron jobs can also schedule individual tasks for a specific time, 
+such as if you want to schedule a job for a low activity period.
+
+Cron jobs have limitations and idiosyncrasies. For example, in certain circumstances, a single cron 
+job can create multiple jobs. Therefore, jobs should be idempotent. For more limitations, see CronJobs
+
+
+
+Creating a Cron Job
+
+Cron jobs require a config file. This example cron job config .spec file prints 
+the current time and a hello message every minute
+
+cat cronjob.yml
+
+
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: hello
+spec:
+  schedule: "*/1 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: hello
+            image: busybox
+            args:
+            - /bin/sh
+            - -c
+            - date; echo Hello from the Kubernetes cluster
+          restartPolicy: OnFailure
+
+
+
+Alternatively, you can use kubectl run to create a cron job without writing a full config:
+
+kubectl run hello --schedule="*/1 * * * *" --restart=OnFailure --image=busybox -- /bin/sh -c "date; 
+echo Hello from the Kubernetes cluster"
+
+# Replace "hello-4111706356" with the job name in your system
+pods=$(kubectl get pods --selector=job-name=hello-4111706356 --output=jsonpath={.items[].metadata.name})
+
+
+Writing a Cron Job Spec
+As with all other Kubernetes configs, a cron job needs apiVersion, kind, and metadata fields. 
+For general information about working with config files, see deploying applications, and 
+using kubectl to manage resources documents.
+
+A cron job config also needs a .spec section.
+
+Note: All modifications to a cron job, especially its .spec, are applied only to the following runs.
+Schedule
+The .spec.schedule is a required field of the .spec. It takes a Cron format string, 
+such as 0 * * * * or @hourly, as schedule time of its jobs to be created and executed.
+
+The format also includes extended vixie cron step values. As explained in the FreeBSD manual:
+
+Step values can be used in conjunction with ranges. Following a range with /<number> 
+specifies skips of the number’s value through the range. For example, 0-23/2 can be used in 
+the hours field to specify command execution every other hour (the alternative in the V7 standard
+is 0,2,4,6,8,10,12,14,16,18,20,22). Steps are also permitted after an asterisk, so if you want to
+say “every two hours”, just use */2.
+
+Note: A question mark (?) in the schedule has the same meaning as an asterisk *, that is, it stands
+for any of available value for a given field.
+Job Template
+The .spec.jobTemplate is the template for the job, and it is required. It has exactly the same schema
+as a Job, except that it is nested and does not have an apiVersion or kind. For information about
+writing a job .spec, see Writing a Job Spec.
+
+Starting Deadline
+The .spec.startingDeadlineSeconds field is optional. It stands for the deadline in seconds
+for starting the job if it misses its scheduled time for any reason. After the deadline,
+the cron job does not start the job. Jobs that do not meet their deadline 
+in this way count as failed jobs. If this field is not specified, the jobs have no deadline.
+
+The CronJob controller counts how many missed schedules happen for a cron job.
+If there are more than 100 missed schedules, the cron job is no longer scheduled. 
+When .spec.startingDeadlineSeconds is not set, the CronJob controller counts missed 
+schedules from status.lastScheduleTime until now.
+
+For example, one cron job is supposed to run every minute, the status.lastScheduleTime 
+of the cronjob is 5:00am, but now it’s 7:00am. That means 120 schedules were missed, 
+so the cron job is no longer scheduled.
+
+If the .spec.startingDeadlineSeconds field is set (not null), the CronJob controller
+counts how many missed jobs occurred from the value of .spec.startingDeadlineSeconds until now.
+
+For example, if it is set to 200, it counts how many missed schedules occurred in the
+last 200 seconds. In that case, if there were more than 100 missed schedules in the last 200 seconds,
+the cron job is no longer scheduled.
+
+Concurrency Policy
+The .spec.concurrencyPolicy field is also optional. It specifies how to treat concurrent
+executions of a job that is created by this cron job. The spec may specify only one of the following concurrency policies:
+
+Allow (default): The cron job allows concurrently running jobs
+
+Forbid: The cron job does not allow concurrent runs; if it is time for a new job run and 
+the previous job run hasn’t finished yet, the cron job skips the new job run
+Replace: If it is time for a new job run and the previous job run hasn’t finished yet,
+the cron job replaces the currently running job run with a new job run
+Note that concurrency policy only applies to the jobs created by the same cron job.
+If there are multiple cron jobs, their respective jobs are always allowed to run concurrently.
+
+Suspend
+The .spec.suspend field is also optional. If it is set to true, all subsequent executions are suspended.
+This setting does not apply to already started executions. Defaults to false.
+
+
+
+Jobs History Limits
+The .spec.successfulJobsHistoryLimit and .spec.failedJobsHistoryLimit fields are optional.
+These fields specify how many completed and failed jobs should be kept. By default, 
+they are set to 3 and 1 respectively. Setting a limit to 0 corresponds to keeping
+none of the corresponding kind of jobs after they finish.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

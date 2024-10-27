@@ -1,0 +1,843 @@
+---
+paths:
+  "/apis/batch/v1/":
+    get:
+      description: get available resources
+      operationId: getBatchV1APIResources
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.APIResourceList"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.APIResourceList"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.APIResourceList"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      servers: []
+  "/apis/batch/v1/jobs":
+    get:
+      description: list or watch objects of kind Job
+      operationId: listBatchV1JobForAllNamespaces
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.JobList"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.JobList"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.JobList"
+            application/json;stream=watch:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.JobList"
+            application/vnd.kubernetes.protobuf;stream=watch:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.JobList"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      x-kubernetes-action: list
+      x-kubernetes-group-version-kind:
+        group: batch
+        kind: Job
+        version: v1
+      servers: []
+  "/apis/batch/v1/namespaces/{namespace}/jobs":
+    delete:
+      description: delete collection of Job
+      operationId: deleteBatchV1CollectionNamespacedJob
+      parameters:
+      - description: |-
+          allowWatchBookmarks requests watch events with type "BOOKMARK". Servers that do not implement bookmarks may ignore this flag and bookmarks are sent at the server's discretion. Clients should not assume bookmarks are returned at any specific interval, nor may they assume the server will send any BOOKMARK event during a session. If this is not a watch, this field is ignored. If the feature gate WatchBookmarks is not enabled in apiserver, this field is ignored.
+
+          This field is beta.
+        in: query
+        name: allowWatchBookmarks
+        schema:
+          type: boolean
+          uniqueItems: true
+      - description: |-
+          The continue option should be set when retrieving more results from the server. Since this value is server defined, clients may only use the continue value from a previous query result with identical query parameters (except for the value of continue) and the server may reject a continue value it does not recognize. If the specified continue value is no longer valid whether due to expiration (generally five to fifteen minutes) or a configuration change on the server, the server will respond with a 410 ResourceExpired error together with a continue token. If the client needs a consistent list, it must restart their list without the continue field. Otherwise, the client may send another list request with the token received with the 410 error, the server will respond with a list starting from the next key, but from the latest snapshot, which is inconsistent from the previous list results - objects that are created, modified, or deleted after the first list request will be included in the response, as long as their keys are after the "next key".
+
+          This field is not supported when watch is true. Clients may start a watch from the last resourceVersion value returned by the server and not miss any modifications.
+        in: query
+        name: continue
+        schema:
+          type: string
+          uniqueItems: true
+      - description: 'When present, indicates that modifications should not be persisted.
+          An invalid or unrecognized dryRun directive will result in an error response
+          and no further processing of the request. Valid values are: - All: all dry
+          run stages will be processed'
+        in: query
+        name: dryRun
+        schema:
+          type: string
+          uniqueItems: true
+      - description: A selector to restrict the list of returned objects by their
+          fields. Defaults to everything.
+        in: query
+        name: fieldSelector
+        schema:
+          type: string
+          uniqueItems: true
+      - description: The duration in seconds before the object should be deleted.
+          Value must be non-negative integer. The value zero indicates delete immediately.
+          If this value is nil, the default grace period for the specified type will
+          be used. Defaults to a per object value if not specified. zero means delete
+          immediately.
+        in: query
+        name: gracePeriodSeconds
+        schema:
+          type: integer
+          uniqueItems: true
+      - description: A selector to restrict the list of returned objects by their
+          labels. Defaults to everything.
+        in: query
+        name: labelSelector
+        schema:
+          type: string
+          uniqueItems: true
+      - description: |-
+          limit is a maximum number of responses to return for a list call. If more items exist, the server will set the `continue` field on the list metadata to a value that can be used with the same initial query to retrieve the next set of results. Setting a limit may return fewer than the requested amount of items (up to zero items) in the event all requested objects are filtered out and clients should only use the presence of the continue field to determine whether more results are available. Servers may choose not to support the limit argument and will return all of the available results. If limit is specified and the continue field is empty, clients may assume that no more results are available. This field is not supported if watch is true.
+
+          The server guarantees that the objects returned when using continue will be identical to issuing a single list call without a limit - that is, no objects created, modified, or deleted after the first request is issued will be included in any subsequent continued requests. This is sometimes referred to as a consistent snapshot, and ensures that a client that is using limit to receive smaller chunks of a very large result can ensure they see all possible objects. If objects are updated during a chunked list the version of the object that was present at the time the first list result was calculated is returned.
+        in: query
+        name: limit
+        schema:
+          type: integer
+          uniqueItems: true
+      - description: 'Deprecated: please use the PropagationPolicy, this field will
+          be deprecated in 1.7. Should the dependent objects be orphaned. If true/false,
+          the "orphan" finalizer will be added to/removed from the object''s finalizers
+          list. Either this field or PropagationPolicy may be set, but not both.'
+        in: query
+        name: orphanDependents
+        schema:
+          type: boolean
+          uniqueItems: true
+      - description: 'Whether and how garbage collection will be performed. Either
+          this field or OrphanDependents may be set, but not both. The default policy
+          is decided by the existing finalizer set in the metadata.finalizers and
+          the resource-specific default policy. Acceptable values are: ''Orphan''
+          - orphan the dependents; ''Background'' - allow the garbage collector to
+          delete the dependents in the background; ''Foreground'' - a cascading policy
+          that deletes all dependents in the foreground.'
+        in: query
+        name: propagationPolicy
+        schema:
+          type: string
+          uniqueItems: true
+      - description: 'When specified with a watch call, shows changes that occur after
+          that particular version of a resource. Defaults to changes from the beginning
+          of history. When specified for list: - if unset, then the result is returned
+          from remote storage based on quorum-read flag; - if it''s 0, then we simply
+          return what we currently have in cache, no guarantee; - if set to non zero,
+          then the result is at least as fresh as given rv.'
+        in: query
+        name: resourceVersion
+        schema:
+          type: string
+          uniqueItems: true
+      - description: Timeout for the list/watch call. This limits the duration of
+          the call, regardless of any activity or inactivity.
+        in: query
+        name: timeoutSeconds
+        schema:
+          type: integer
+          uniqueItems: true
+      - description: Watch for changes to the described resources and return them
+          as a stream of add, update, and remove notifications. Specify resourceVersion.
+        in: query
+        name: watch
+        schema:
+          type: boolean
+          uniqueItems: true
+      requestBody:
+        "$ref": "#/components/requestBodies/io.k8s.apimachinery.pkg.apis.meta.v1.DeleteOptions"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.Status"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.Status"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.Status"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      x-kubernetes-action: deletecollection
+      x-kubernetes-group-version-kind:
+        group: batch
+        kind: Job
+        version: v1
+      servers: []
+    get:
+      description: list or watch objects of kind Job
+      operationId: listBatchV1NamespacedJob
+      parameters:
+      - description: |-
+          allowWatchBookmarks requests watch events with type "BOOKMARK". Servers that do not implement bookmarks may ignore this flag and bookmarks are sent at the server's discretion. Clients should not assume bookmarks are returned at any specific interval, nor may they assume the server will send any BOOKMARK event during a session. If this is not a watch, this field is ignored. If the feature gate WatchBookmarks is not enabled in apiserver, this field is ignored.
+
+          This field is beta.
+        in: query
+        name: allowWatchBookmarks
+        schema:
+          type: boolean
+          uniqueItems: true
+      - description: |-
+          The continue option should be set when retrieving more results from the server. Since this value is server defined, clients may only use the continue value from a previous query result with identical query parameters (except for the value of continue) and the server may reject a continue value it does not recognize. If the specified continue value is no longer valid whether due to expiration (generally five to fifteen minutes) or a configuration change on the server, the server will respond with a 410 ResourceExpired error together with a continue token. If the client needs a consistent list, it must restart their list without the continue field. Otherwise, the client may send another list request with the token received with the 410 error, the server will respond with a list starting from the next key, but from the latest snapshot, which is inconsistent from the previous list results - objects that are created, modified, or deleted after the first list request will be included in the response, as long as their keys are after the "next key".
+
+          This field is not supported when watch is true. Clients may start a watch from the last resourceVersion value returned by the server and not miss any modifications.
+        in: query
+        name: continue
+        schema:
+          type: string
+          uniqueItems: true
+      - description: A selector to restrict the list of returned objects by their
+          fields. Defaults to everything.
+        in: query
+        name: fieldSelector
+        schema:
+          type: string
+          uniqueItems: true
+      - description: A selector to restrict the list of returned objects by their
+          labels. Defaults to everything.
+        in: query
+        name: labelSelector
+        schema:
+          type: string
+          uniqueItems: true
+      - description: |-
+          limit is a maximum number of responses to return for a list call. If more items exist, the server will set the `continue` field on the list metadata to a value that can be used with the same initial query to retrieve the next set of results. Setting a limit may return fewer than the requested amount of items (up to zero items) in the event all requested objects are filtered out and clients should only use the presence of the continue field to determine whether more results are available. Servers may choose not to support the limit argument and will return all of the available results. If limit is specified and the continue field is empty, clients may assume that no more results are available. This field is not supported if watch is true.
+
+          The server guarantees that the objects returned when using continue will be identical to issuing a single list call without a limit - that is, no objects created, modified, or deleted after the first request is issued will be included in any subsequent continued requests. This is sometimes referred to as a consistent snapshot, and ensures that a client that is using limit to receive smaller chunks of a very large result can ensure they see all possible objects. If objects are updated during a chunked list the version of the object that was present at the time the first list result was calculated is returned.
+        in: query
+        name: limit
+        schema:
+          type: integer
+          uniqueItems: true
+      - description: 'When specified with a watch call, shows changes that occur after
+          that particular version of a resource. Defaults to changes from the beginning
+          of history. When specified for list: - if unset, then the result is returned
+          from remote storage based on quorum-read flag; - if it''s 0, then we simply
+          return what we currently have in cache, no guarantee; - if set to non zero,
+          then the result is at least as fresh as given rv.'
+        in: query
+        name: resourceVersion
+        schema:
+          type: string
+          uniqueItems: true
+      - description: Timeout for the list/watch call. This limits the duration of
+          the call, regardless of any activity or inactivity.
+        in: query
+        name: timeoutSeconds
+        schema:
+          type: integer
+          uniqueItems: true
+      - description: Watch for changes to the described resources and return them
+          as a stream of add, update, and remove notifications. Specify resourceVersion.
+        in: query
+        name: watch
+        schema:
+          type: boolean
+          uniqueItems: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.JobList"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.JobList"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.JobList"
+            application/json;stream=watch:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.JobList"
+            application/vnd.kubernetes.protobuf;stream=watch:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.JobList"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      x-kubernetes-action: list
+      x-kubernetes-group-version-kind:
+        group: batch
+        kind: Job
+        version: v1
+      servers: []
+    post:
+      description: create a Job
+      operationId: createBatchV1NamespacedJob
+      parameters:
+      - description: 'When present, indicates that modifications should not be persisted.
+          An invalid or unrecognized dryRun directive will result in an error response
+          and no further processing of the request. Valid values are: - All: all dry
+          run stages will be processed'
+        in: query
+        name: dryRun
+        schema:
+          type: string
+          uniqueItems: true
+      - description: fieldManager is a name associated with the actor or entity that
+          is making these changes. The value must be less than or 128 characters long,
+          and only contain printable characters, as defined by https://golang.org/pkg/unicode/#IsPrint.
+        in: query
+        name: fieldManager
+        schema:
+          type: string
+          uniqueItems: true
+      requestBody:
+        "$ref": "#/components/requestBodies/io.k8s.api.batch.v1.Job"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      x-kubernetes-action: post
+      x-kubernetes-group-version-kind:
+        group: batch
+        kind: Job
+        version: v1
+      servers: []
+  "/apis/batch/v1/namespaces/{namespace}/jobs/{name}":
+    delete:
+      description: delete a Job
+      operationId: deleteBatchV1NamespacedJob
+      parameters:
+      - description: 'When present, indicates that modifications should not be persisted.
+          An invalid or unrecognized dryRun directive will result in an error response
+          and no further processing of the request. Valid values are: - All: all dry
+          run stages will be processed'
+        in: query
+        name: dryRun
+        schema:
+          type: string
+          uniqueItems: true
+      - description: The duration in seconds before the object should be deleted.
+          Value must be non-negative integer. The value zero indicates delete immediately.
+          If this value is nil, the default grace period for the specified type will
+          be used. Defaults to a per object value if not specified. zero means delete
+          immediately.
+        in: query
+        name: gracePeriodSeconds
+        schema:
+          type: integer
+          uniqueItems: true
+      - description: 'Deprecated: please use the PropagationPolicy, this field will
+          be deprecated in 1.7. Should the dependent objects be orphaned. If true/false,
+          the "orphan" finalizer will be added to/removed from the object''s finalizers
+          list. Either this field or PropagationPolicy may be set, but not both.'
+        in: query
+        name: orphanDependents
+        schema:
+          type: boolean
+          uniqueItems: true
+      - description: 'Whether and how garbage collection will be performed. Either
+          this field or OrphanDependents may be set, but not both. The default policy
+          is decided by the existing finalizer set in the metadata.finalizers and
+          the resource-specific default policy. Acceptable values are: ''Orphan''
+          - orphan the dependents; ''Background'' - allow the garbage collector to
+          delete the dependents in the background; ''Foreground'' - a cascading policy
+          that deletes all dependents in the foreground.'
+        in: query
+        name: propagationPolicy
+        schema:
+          type: string
+          uniqueItems: true
+      requestBody:
+        "$ref": "#/components/requestBodies/io.k8s.apimachinery.pkg.apis.meta.v1.DeleteOptions"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.Status"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.Status"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.Status"
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.Status"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.Status"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.Status"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      x-kubernetes-action: delete
+      x-kubernetes-group-version-kind:
+        group: batch
+        kind: Job
+        version: v1
+      servers: []
+    get:
+      description: read the specified Job
+      operationId: readBatchV1NamespacedJob
+      parameters:
+      - description: Should the export be exact.  Exact export maintains cluster-specific
+          fields like 'Namespace'. Deprecated. Planned for removal in 1.18.
+        in: query
+        name: exact
+        schema:
+          type: boolean
+          uniqueItems: true
+      - description: Should this value be exported.  Export strips fields that a user
+          can not specify. Deprecated. Planned for removal in 1.18.
+        in: query
+        name: export
+        schema:
+          type: boolean
+          uniqueItems: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      x-kubernetes-action: get
+      x-kubernetes-group-version-kind:
+        group: batch
+        kind: Job
+        version: v1
+      servers: []
+    patch:
+      description: partially update the specified Job
+      operationId: patchBatchV1NamespacedJob
+      parameters:
+      - description: 'When present, indicates that modifications should not be persisted.
+          An invalid or unrecognized dryRun directive will result in an error response
+          and no further processing of the request. Valid values are: - All: all dry
+          run stages will be processed'
+        in: query
+        name: dryRun
+        schema:
+          type: string
+          uniqueItems: true
+      - description: fieldManager is a name associated with the actor or entity that
+          is making these changes. The value must be less than or 128 characters long,
+          and only contain printable characters, as defined by https://golang.org/pkg/unicode/#IsPrint.
+          This field is required for apply requests (application/apply-patch) but
+          optional for non-apply patch types (JsonPatch, MergePatch, StrategicMergePatch).
+        in: query
+        name: fieldManager
+        schema:
+          type: string
+          uniqueItems: true
+      - description: Force is going to "force" Apply requests. It means user will
+          re-acquire conflicting fields owned by other people. Force flag must be
+          unset for non-apply patch requests.
+        in: query
+        name: force
+        schema:
+          type: boolean
+          uniqueItems: true
+      requestBody:
+        "$ref": "#/components/requestBodies/io.k8s.apimachinery.pkg.apis.meta.v1.Patch"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      x-kubernetes-action: patch
+      x-kubernetes-group-version-kind:
+        group: batch
+        kind: Job
+        version: v1
+      servers: []
+    put:
+      description: replace the specified Job
+      operationId: replaceBatchV1NamespacedJob
+      parameters:
+      - description: 'When present, indicates that modifications should not be persisted.
+          An invalid or unrecognized dryRun directive will result in an error response
+          and no further processing of the request. Valid values are: - All: all dry
+          run stages will be processed'
+        in: query
+        name: dryRun
+        schema:
+          type: string
+          uniqueItems: true
+      - description: fieldManager is a name associated with the actor or entity that
+          is making these changes. The value must be less than or 128 characters long,
+          and only contain printable characters, as defined by https://golang.org/pkg/unicode/#IsPrint.
+        in: query
+        name: fieldManager
+        schema:
+          type: string
+          uniqueItems: true
+      requestBody:
+        "$ref": "#/components/requestBodies/io.k8s.api.batch.v1.Job"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      x-kubernetes-action: put
+      x-kubernetes-group-version-kind:
+        group: batch
+        kind: Job
+        version: v1
+      servers: []
+  "/apis/batch/v1/namespaces/{namespace}/jobs/{name}/status":
+    get:
+      description: read status of the specified Job
+      operationId: readBatchV1NamespacedJobStatus
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      x-kubernetes-action: get
+      x-kubernetes-group-version-kind:
+        group: batch
+        kind: Job
+        version: v1
+      servers: []
+    patch:
+      description: partially update status of the specified Job
+      operationId: patchBatchV1NamespacedJobStatus
+      parameters:
+      - description: 'When present, indicates that modifications should not be persisted.
+          An invalid or unrecognized dryRun directive will result in an error response
+          and no further processing of the request. Valid values are: - All: all dry
+          run stages will be processed'
+        in: query
+        name: dryRun
+        schema:
+          type: string
+          uniqueItems: true
+      - description: fieldManager is a name associated with the actor or entity that
+          is making these changes. The value must be less than or 128 characters long,
+          and only contain printable characters, as defined by https://golang.org/pkg/unicode/#IsPrint.
+          This field is required for apply requests (application/apply-patch) but
+          optional for non-apply patch types (JsonPatch, MergePatch, StrategicMergePatch).
+        in: query
+        name: fieldManager
+        schema:
+          type: string
+          uniqueItems: true
+      - description: Force is going to "force" Apply requests. It means user will
+          re-acquire conflicting fields owned by other people. Force flag must be
+          unset for non-apply patch requests.
+        in: query
+        name: force
+        schema:
+          type: boolean
+          uniqueItems: true
+      requestBody:
+        "$ref": "#/components/requestBodies/io.k8s.apimachinery.pkg.apis.meta.v1.Patch"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      x-kubernetes-action: patch
+      x-kubernetes-group-version-kind:
+        group: batch
+        kind: Job
+        version: v1
+      servers: []
+    put:
+      description: replace status of the specified Job
+      operationId: replaceBatchV1NamespacedJobStatus
+      parameters:
+      - description: 'When present, indicates that modifications should not be persisted.
+          An invalid or unrecognized dryRun directive will result in an error response
+          and no further processing of the request. Valid values are: - All: all dry
+          run stages will be processed'
+        in: query
+        name: dryRun
+        schema:
+          type: string
+          uniqueItems: true
+      - description: fieldManager is a name associated with the actor or entity that
+          is making these changes. The value must be less than or 128 characters long,
+          and only contain printable characters, as defined by https://golang.org/pkg/unicode/#IsPrint.
+        in: query
+        name: fieldManager
+        schema:
+          type: string
+          uniqueItems: true
+      requestBody:
+        "$ref": "#/components/requestBodies/io.k8s.api.batch.v1.Job"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.api.batch.v1.Job"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      x-kubernetes-action: put
+      x-kubernetes-group-version-kind:
+        group: batch
+        kind: Job
+        version: v1
+      servers: []
+  "/apis/batch/v1/watch/jobs":
+    get:
+      description: 'watch individual changes to a list of Job. deprecated: use the
+        ''watch'' parameter with a list operation instead.'
+      operationId: watchBatchV1JobListForAllNamespaces
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+            application/json;stream=watch:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+            application/vnd.kubernetes.protobuf;stream=watch:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      x-kubernetes-action: watchlist
+      x-kubernetes-group-version-kind:
+        group: batch
+        kind: Job
+        version: v1
+      servers: []
+  "/apis/batch/v1/watch/namespaces/{namespace}/jobs":
+    get:
+      description: 'watch individual changes to a list of Job. deprecated: use the
+        ''watch'' parameter with a list operation instead.'
+      operationId: watchBatchV1NamespacedJobList
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+            application/json;stream=watch:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+            application/vnd.kubernetes.protobuf;stream=watch:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      x-kubernetes-action: watchlist
+      x-kubernetes-group-version-kind:
+        group: batch
+        kind: Job
+        version: v1
+      servers: []
+  "/apis/batch/v1/watch/namespaces/{namespace}/jobs/{name}":
+    get:
+      description: 'watch changes to an object of kind Job. deprecated: use the ''watch''
+        parameter with a list operation instead, filtered to a single item with the
+        ''fieldSelector'' parameter.'
+      operationId: watchBatchV1NamespacedJob
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+            application/yaml:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+            application/vnd.kubernetes.protobuf:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+            application/json;stream=watch:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+            application/vnd.kubernetes.protobuf;stream=watch:
+              schema:
+                "$ref": "#/components/schemas/io.k8s.apimachinery.pkg.apis.meta.v1.WatchEvent"
+        '401':
+          description: Unauthorized
+      tags:
+      - batch_v1
+      x-kubernetes-action: watch
+      x-kubernetes-group-version-kind:
+        group: batch
+        kind: Job
+        version: v1
+      servers: []

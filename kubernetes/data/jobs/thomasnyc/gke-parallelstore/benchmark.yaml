@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: benchmark-job
+spec:
+  template:  # Template for the Pods the Job will create
+    metadata:
+      annotations:
+        gke-parallelstore/volumes: "true"
+        gke-parallelstore/cpu-request: 500m
+        gke-parallelstore/memory-request: 1Gi
+        gke-parallelstore/ephemeral-storage-request: 5Gi
+        gke-parallelstore/cpu-limit: 1000m
+        gke-parallelstore/memory-limit: 2Gi
+        gke-parallelstore/ephemeral-storage-limit: 50Gi
+    spec:
+      containers:
+      - name: fio
+        resources:
+          requests:
+            cpu: "2"
+        image: litmuschaos/fio
+        args:
+        - fio
+        - --filename
+        - /models/gemma-7b/model-00001-of-00004.safetensors:/models/gemma-7b/model-00002-of-00004.safetensors:/models/gemma-7b/model-00003-of-00004.safetensors:/models/gemma-7b/model-00004-of-00004.safetensors:/models/gemma-7b/model-00004-of-00004.safetensors
+        - --direct=1
+        - --rw=read
+        - --readonly
+        - --bs=4096k
+        - --ioengine=libaio
+        - --iodepth=8
+        - --runtime=60
+        - --numjobs=1
+        - --name=read_benchmark
+        volumeMounts:
+        - mountPath: "/models"
+          name: parallelstore-pv 
+      restartPolicy: Never
+      volumes:
+      - name: parallelstore-pv 
+        persistentVolumeClaim:
+          claimName: parallelstore-pvc
+  parallelism: 1         # Run 1 Pods concurrently
+  completions: 1         # Once 1 Pods complete successfully, the Job is done
+  backoffLimit: 1        # Max retries on failure

@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: microbench-alu
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      restartPolicy: Never
+      containers:
+        - name: centos8
+          image: quay.io/centos/centos:stream8
+          securityContext:
+            privileged: true
+          command:
+            - 'bash'
+            - '-c'
+            - >
+              dnf -y update;
+              dnf -y groupinstall "Development Tools";
+              echo "🟢🟢 Checking GCC/G++  🟢🟢";
+              gcc --version;
+              g++ --version;
+              echo "🟢🟢 Building microbenchmarks  🟢🟢";
+              git clone https://github.com/handong32/peakler.git;
+              cd peakler/experiments/microbenchmarks;
+              COUNT=5000000 make build/runALU;
+              nproc;
+              ls;
+              chmod +x *.sh;
+              bash ./run_alu.sh $ALUFUNCTION -n $NROUNDS -i $NITERS -e $ENDPOINT || exit 1;
+              echo "🟢🟢 Done. Sleeping for 30 days 🟢🟢";
+              sleep 30d
+          env:
+            - name: ENDPOINT
+              value: "10.244.200.205:9102"
+            - name: NROUNDS
+              value: "3"
+            - name: NITERS
+              value: "9000"
+            - name: ALUFUNCTION
+              value: "single"

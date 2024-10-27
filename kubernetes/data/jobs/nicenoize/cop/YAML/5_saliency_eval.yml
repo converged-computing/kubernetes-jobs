@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: saliency-eval
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: saliency-eval
+    spec:
+      restartPolicy: "Never"
+      containers:
+        - name:  saliency-eval
+          image: registry.datexis.com/bvanaken-shk/xai-benchmark:v1.0
+          imagePullPolicy: "Always"
+          ports:
+            - name: client-port
+              containerPort: 6006
+          resources:
+            requests:
+              nvidia.com/gpu: 1
+              memory: "4Gi"
+              cpu: "500m"
+            limits:
+              nvidia.com/gpu: 1 # requesting 1 GPU
+              memory: 28Gi
+              cpu: "8000m"
+          volumeMounts:
+            - name: outcome-paper-models-pvc
+              mountPath: "/xai-benchmark"
+          env:
+          - name: PYTHONUNBUFFERED
+            value: "0"
+          command:
+            - /bin/sh
+            - "-c"
+            - "python /xai-benchmark/faithfulness.py --saliency 2_guided_l2 --test_saliency_dir /xai-benchmark/data/saliency_transformer/ --models_dir /xai-benchmark/data/models/snli/transformer/ --dataset snli --dataset_dir /xai-benchmark/data/e-SNLI/ --model trans"
+      nodeSelector:
+        gpu: v100
+      imagePullSecrets:
+        - name:  private-registry-auth
+      volumes:
+      - name: outcome-paper-models-pvc
+        persistentVolumeClaim:
+          claimName: outcome-paper-models-pvc

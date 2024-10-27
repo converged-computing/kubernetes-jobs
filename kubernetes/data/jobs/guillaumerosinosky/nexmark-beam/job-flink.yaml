@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nexmark-job
+spec:
+  template:
+    spec:
+      containers:
+      - name: nexmark
+        image: grosinosky/nexmark-beam
+        args: 
+        - "--runner=FlinkRunner"
+        - "--flinkMaster=nexmark-flink-jobmanager.default:8081"
+        - "--streaming=true"
+        #- "--suite=STRESS"
+        - "--manageResources=false"
+        - "--monitorJobs=true"
+        - "--enforceEncodability=true"
+        - "--enforceImmutability=true"
+        - "--query=5"
+        - "--parallelism=3"
+        - "--numEventGenerators=4"
+        - "--numEvents=100000000"
+        - "--firstEventRate=100000"
+        - "--nextEventRate=100000"
+      restartPolicy: Never
+  backoffLimit: 1
+
+

@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: es-benchmarking-load
+spec:
+  backoffLimit: 6
+  completions: 1
+  parallelism: 1
+  template:
+    spec:
+      initContainers:
+      - name: init-check-connectivity
+        image: {{ template "eric-enm-es-benchmark.esbenchimagepath" . }}
+        imagePullPolicy: {{ .Values.imageCredentials.pullPolicy }}
+        command: ['/bin/sh', '/opt/ericsson/elasticsearch/check_connectivity.sh', '-s', 'elasticsearch']
+      {{- if eq (include "eric-enm-es-benchmark.cnivAgent.enabled" . ) "false" }}
+      - name: init-myservice
+        image: curlimages/curl
+        command: ['sh', '-c', 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' http://scbench:8080/start_request/{{ template "eric-enm-es-benchmark.benchmarkGroup.label" . }}/{{ $.Chart.Name }})" != "202" ]]; do echo "sleeping"; sleep 10; done']
+      {{- end }}
+      containers:
+      - command: ['/bin/sh', "/opt/ericsson/elasticsearch/load_data.sh","-n","{{ .Values.esbench.count }}","-s","{{ .Values.esbench.docsize }}","-m","{{ .Values.esbench.maxsize }}"]
+        image: {{ template "eric-enm-es-benchmark.esbenchimagepath" . }}
+        imagePullPolicy: {{ .Values.imageCredentials.pullPolicy }}
+        name: esload
+        resources:
+          {{- toYaml .Values.resources.esload | nindent 12 }}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Never
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: esbench-config
+          configMap:
+            name: esbench-config
+        - name: pvc
+          persistentVolumeClaim:
+            claimName: {{ include "eric-enm-es-benchmark.name" . }}
+      imagePullSecrets:
+        - name: {{ include "eric-enm-es-benchmark.pullSecret" . }}
+

@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sleeper
+  namespace: default
+  labels:
+    app: sleeper
+spec:
+  completions: 1 # job runs 5 pods sequentially
+  # parallelism: 3 # upto 3 pods can run in parallel
+  activeDeadlineSeconds: 5 # how long should job wait for a pod to finish
+  backoffLimit: 3 # how many times a job can be retried before it is marked as failed
+  template:
+    metadata:
+      name: sleeper
+      labels:
+        app: sleeper
+    spec:
+      containers:
+      - name: sleeper
+        image: sleeper:latest
+        imagePullPolicy: IfNotPresent
+      # restartPolicy: OnFailure
+      restartPolicy: Never
+---

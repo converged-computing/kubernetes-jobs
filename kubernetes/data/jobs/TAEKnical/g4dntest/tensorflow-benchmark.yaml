@@ -1,0 +1,34 @@
+# apiVersion: batch/v1
+# kind: Job
+# metadata:
+#   name: tf-benchmark
+# spec:
+#   completions: 4
+#   parallelism: 4
+#   backoffLimit: 1
+#   template:
+#     spec:
+#       restartPolicy: Never
+#       hostIPC: true
+#       containers:
+#       - name: tf-benchmark
+#         image: 990059916486.dkr.ecr.ap-northeast-2.amazonaws.com/bno-dev-cr-adm:tensorflow-benchmark_v1.15.2
+#         args:
+#         - "python3"
+#         - "/opt/benchmarks/scripts/tf_cnn_benchmarks/tf_cnn_benchmarks.py"
+#         - "--data_name=imagenet"
+#         - "--model=resnet50"
+#         - "--num_batches=100"
+#         - "--batch_size=4"
+#         - "--num_gpus=1"
+#         - "--gpu_memory_frac_for_testing=0.2"
+#         resources:
+#           limits:
+#             k8s.amazonaws.com/vgpu: 2
+#         volumeMounts:
+#         - name: nvidia-mps
+#           mountPath: /tmp/nvidia-mps
+#       volumes:
+#       - name: nvidia-mps
+#         hostPath:
+#           path: /tmp/nvidia-mps

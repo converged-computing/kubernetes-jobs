@@ -1,0 +1,146 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: initialize-dsp-rag-sep10-1-gitops
+spec:  
+  template:         
+    metadata:
+      name: initialize-dsp-rag-sep10-1-gitops
+    spec:  
+      serviceAccountName: rag-sep10-1-dsp-job
+      containers:
+      - name: initialize-dsp
+        image: quay.io/redhat-appstudio/appstudio-utils:5bd7d6cb0b17f9f2eab043a8ad16ba3d90551bc2@sha256:8c7fcf86af40c71aeb58e4279625c8308af5144e2f6b8e28b0ec7e795260e5f7
+
+        command:
+        - /bin/bash
+        - -c
+        - |
+          # Wait for the NS initialize job to finish
+          echo "Wait for NS Job"
+          oc wait --for=condition=complete job/initialize-namespace-rag-sep10-1-gitops
+          echo "Done"
+
+          # Label the namespace as a DataScienceProject
+          NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+          oc label ns $NS opendatahub.io/dashboard=true --overwrite
+
+          # Retrieve the UID for the notebook SA, and mark the notebook as owned by it for garbage collection purposes
+          SA_UID=$(oc get sa rag-sep10-1-dsp-job -o json | jq -r .metadata.uid)
+          echo "$SA_UID"
+          cat <<EOF | oc apply -f -
+          apiVersion: kubeflow.org/v1
+          kind: Notebook
+          metadata:
+            annotations:
+              notebooks.opendatahub.io/inject-oauth: 'true'
+              opendatahub.io/image-display-name: Minimal Python
+              opendatahub.io/accelerator-name: ''
+              openshift.io/description: ''
+              openshift.io/display-name: rag-sep10-1-notebook
+              notebooks.opendatahub.io/last-image-selection: 's2i-minimal-notebook:2024.1'
+              notebooks.opendatahub.io/last-size-selection: Small
+            name: rag-sep10-1-notebook
+            namespace: rag-sep10-1
+            ownerReferences:
+              - apiVersion: v1
+                kind: ServiceAccount
+                name: rag-sep10-1-dsp-job
+                uid: $SA_UID
+            labels:
+              app: rag-sep10-1-notebook
+              opendatahub.io/dashboard: 'true'
+              opendatahub.io/odh-managed: 'true'
+          spec:
+            template:
+              spec:
+                affinity: {}
+                containers:
+                  - resources:
+                      limits:
+                        cpu: '2'
+                        memory: 8Gi
+                      requests:
+                        cpu: '1'
+                        memory: 8Gi
+                    readinessProbe:
+                      failureThreshold: 3
+                      httpGet:
+                        path: /notebook/rag-sep10-1/rag-sep10-1-notebook/api
+                        port: notebook-port
+                        scheme: HTTP
+                      initialDelaySeconds: 10
+                      periodSeconds: 5
+                      successThreshold: 1
+                      timeoutSeconds: 1
+                    name: rag-sep10-1-notebook
+                    livenessProbe:
+                      failureThreshold: 3
+                      httpGet:
+                        path: /notebook/rag-sep10-1/rag-sep10-1-notebook/api
+                        port: notebook-port
+                        scheme: HTTP
+                      initialDelaySeconds: 10
+                      periodSeconds: 5
+                      successThreshold: 1
+                      timeoutSeconds: 1
+                    env:
+                      - name: NOTEBOOK_ARGS
+                        value: |-
+                          --ServerApp.port=8888
+                                            --ServerApp.token=''
+                                            --ServerApp.password=''
+                                            --ServerApp.base_url=/notebook/rag-sep10-1/rag-sep10-1-notebook
+                                            --ServerApp.quit_button=False
+                      - name: JUPYTER_IMAGE
+                        value: 'image-registry.openshift-image-registry.svc:5000/redhat-ods-applications/custom-sqlite3-odh-minimal-notebook-container:sqlite3'
+                    envFrom:
+                    - configMapRef:
+                        name: rag-sep10-1-model-config
+                    - configMapRef:
+                        name: rag-sep10-1-database-config
+                    ports:
+                      - containerPort: 8888
+                        name: notebook-port
+                        protocol: TCP
+                    imagePullPolicy: Always
+                    volumeMounts:
+                      - mountPath: /opt/app-root/src
+                        name: rag-sep10-1-notebook
+                      - mountPath: /dev/shm
+                        name: shm
+                    image: 'image-registry.openshift-image-registry.svc:5000/redhat-ods-applications/custom-sqlite3-odh-minimal-notebook-container:sqlite3'
+                    workingDir: /opt/app-root/src
+                enableServiceLinks: false
+                serviceAccountName: rag-sep10-1-notebook
+                volumes:
+                  - name: rag-sep10-1-notebook
+                    persistentVolumeClaim:
+                      claimName: rag-sep10-1-notebook-rhoai
+                  - emptyDir:
+                      medium: Memory
+                    name: shm
+          ---
+          kind: PersistentVolumeClaim
+          apiVersion: v1
+          metadata:
+            annotations:
+              openshift.io/display-name: rag-sep10-1-notebook-rhoai
+            name: rag-sep10-1-notebook-rhoai
+            ownerReferences:
+              - apiVersion: v1
+                kind: ServiceAccount
+                name: rag-sep10-1-dsp-job
+                uid: $SA_UID
+            labels:
+              opendatahub.io/dashboard: 'true'
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 20Gi
+            volumeMode: Filesystem
+          EOF
+          
+      restartPolicy: Never

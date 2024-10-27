@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: benchmark-disk
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - image: quay.io/dystewar/fio-openshift-storage-performance:latest
+          imagePullPolicy: IfNotPresent
+          name: kubestr-fio-benchmark-disk
+          workingDir: /target/disk
+          command: 
+            - sh
+            - /scripts/test.sh
+            - "/result/disk"
+          volumeMounts:
+            - mountPath: /target/disk
+              name: target-disk
+            - mountPath: /scripts
+              name: kubestr-scripts
+            - mountPath: /fio-jobs
+              name: fio-jobs
+            - mountPath: /result/disk
+              name: fio-results
+      volumes:
+        - name: target-disk
+          emptyDir: {}
+        - name: kubestr-scripts
+          configMap:
+            name: run-benchmark
+        - name: fio-jobs
+          configMap: 
+            name: fio-jobs
+        - name: fio-results
+          persistentVolumeClaim:
+            claimName: target-pv

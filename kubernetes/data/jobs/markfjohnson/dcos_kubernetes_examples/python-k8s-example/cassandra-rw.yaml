@@ -1,0 +1,15 @@
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cassandra-rw
+spec:
+  template:
+    spec:
+      containers:
+      - name: cassandra-rw
+        image: markfjohnson/python-k8s
+        command: ["python"]
+        args: ["/python-k8s-samples/cassandra-rw.py"]
+      restartPolicy: Never
+  backoffLimit: 4

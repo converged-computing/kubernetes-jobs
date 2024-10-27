@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: benchmark-pv
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - image: quay.io/dystewar/fio-openshift-storage-performance:latest
+          imagePullPolicy: IfNotPresent
+          name: kubestr-fio-benchmark-pv
+          workingDir: /pv/result
+          command:
+            - sh  
+            - /scripts/run-benchmark.sh
+            - "/pv/result"
+          volumeMounts:
+            - mountPath: /pv/result 
+              name: fio-results
+            - mountPath: /scripts
+              name: kubestr-scripts
+            - mountPath: /fio-jobs
+              name: fio-jobs
+      volumes:
+        - name: fio-results
+          persistentVolumeClaim: 
+            claimName: benchmark-target-pv
+        - name: kubestr-scripts
+          configMap:
+            name: run-benchmark
+        - name: fio-jobs
+          configMap: 
+            name: fio-jobs

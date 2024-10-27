@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name}}
+spec:
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      name: "{{ .Chart.Name }}"
+    spec:
+      restartPolicy: "OnFailure"
+      containers:
+        - name: "{{ .Chart.Name }}"
+          {{- if eq .Values.image.tag "latest"}}
+          image: "{{ .Values.image.name}}/{{ .Chart.Name }}:{{ .Chart.AppVersion }}"
+          {{- else}}
+          image: "{{ .Values.image.devRepo }}/{{ .Chart.Name }}:{{ .Values.image.tag }}"
+          {{- end}}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: GOOGLE_CLOUD_PROJECT
+              value: "ras-rm-performance-20220908"
+            - name: GCS_OUTPUT_BUCKET
+              value: "{{ .Values.output.bucket }}"
+            - name: BENCHMARK_OUTPUT_DIRECTORY
+              value: "{{ .Values.benchmark.directory }}"
+            - name: GCS_BENCHMARK_RESULTS_BUCKET
+              value: "{{ .Values.benchmark.bucket }}"

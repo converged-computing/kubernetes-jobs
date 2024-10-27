@@ -1,0 +1,2638 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: robot-shop
+  name: instana-create-anomaly
+  annotations: {}
+spec:
+  selector:
+    matchLabels:
+      app: instana-create-anomaly
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: instana-create-anomaly
+    spec:
+      containers:
+        - name: instana-create-anomaly
+          image: quay.io/niklaushirt/ibm-aiops-tools:2.2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env: []
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "150m"
+            limits:
+              memory: "2024Mi"
+              cpu: "1200m"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              #!/bin/bash
+              #set -x
+
+              echo "*****************************************************************************************************************************"
+              echo " ✅ STARTING: CREATE INSTANA ANOMALY"
+              echo "*****************************************************************************************************************************"
+
+              oc set env deployment ratings -n robot-shop PDO_URL="mysql:host=mysql-dev;dbname=ratings-dev;charset=utf8mb4"
+              oc set env deployment load -n robot-shop ERROR=1
+
+
+              echo "*****************************************************************************************************************************"
+              echo " ✅ DONE - WAITING FOREVER"
+              echo "*****************************************************************************************************************************"
+
+
+              while true
+              do
+                sleep 1000
+              done
+
+      imagePullSecrets: []
+  paused: false
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: robot-shop
+  name: instana-mitigate-anomaly
+  annotations: {}
+spec:
+  selector:
+    matchLabels:
+      app: instana-mitigate-anomaly
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: instana-mitigate-anomaly
+    spec:
+      containers:
+        - name: instana-mitigate-anomaly
+          image: quay.io/niklaushirt/ibm-aiops-tools:2.2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env: []
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "150m"
+            limits:
+              memory: "2024Mi"
+              cpu: "1200m"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              #!/bin/bash
+              #set -x
+
+              echo "*****************************************************************************************************************************"
+              echo " ✅ STARTING: MITIGATE INSTANA ANOMALY"
+              echo "*****************************************************************************************************************************"
+
+              oc set env deployment ratings -n robot-shop PDO_URL="mysql:host=mysql;dbname=ratings;charset=utf8mb4"
+              oc set env deployment load -n robot-shop ERROR=0
+
+              echo "*****************************************************************************************************************************"
+              echo " ✅ DONE - WAITING FOREVER"
+              echo "*****************************************************************************************************************************"
+
+
+              while true
+              do
+                sleep 1000
+              done
+
+      imagePullSecrets: []
+  paused: false
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: instana-webpage-eum-sim
+  namespace: robot-shop
+  labels:
+    app: instana-webpage-eum-sim
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: instana-webpage-eum-sim
+  template:
+    metadata:
+      labels:
+        app: instana-webpage-eum-sim
+    spec:
+      containers:
+      - name: instana-webpage-eum-sim
+        image: docker.io/niklaushirt/eum-sim:1.0
+        env:
+          - name: API_URL
+            value: https://eum.apps.CHANGEME.cloud.techzone.ibm.com
+          - name: API_KEY
+            value: CHANGEME
+          - name: INSTANA_AGENT_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: CONFIG
+            value: config-shop
+            # Change this per environment
+          - name: BACKENDS
+            value: demoeu
+          - name: PORT
+            value: '8000'
+          - name: TZ
+            value: Europe/London
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          limits:
+            cpu: 200m
+            memory: 300Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        imagePullPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: instana-webpage-eum-sim-service
+  namespace: robot-shop
+spec:
+  selector:
+    app: instana-webpage-eum-sim
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+---
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: instana-webpage-eum-sim
+  namespace: robot-shop
+spec:
+  to:
+    kind: Service
+    name: instana-webpage-eum-sim-service
+    weight: 100
+  port:
+    targetPort: 8000
+  wildcardPolicy: None
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: instana-mobile-eum-sim
+  namespace: robot-shop
+  labels:
+    app: instana-mobile-eum-sim
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: instana-mobile-eum-sim
+  template:
+    metadata:
+      labels:
+        app: instana-mobile-eum-sim
+    spec:
+      containers:
+      - name: instana-mobile-eum-sim
+        image: docker.io/niklaushirt/eum-sim-mobile:1.4
+        imagePullPolicy: Always
+        env:
+          - name: INSTANA_AGENT_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: PLAYBOOK
+            value: robotshop
+          - name: REPORT_ENV
+            value: demoeu
+          - name: APIURL
+            value: https://dev-aiops.apps.CHANGEME.cloud.techzone.ibm.com
+          - name: APITOKEN
+            value: CHANGEME
+          - name: REPORTINGURL
+            value: https://eum.apps.CHANGEME.cloud.techzone.ibm.com/mobile
+          - name: REPORTINGKEY
+            value: CHANGEME
+          - name: DEBUG
+            value: 'false'
+          - name: DOCKER
+            value: 'true'
+        resources:
+          limits:
+            cpu: 200m
+            memory: 300Mi
+          requests:
+            cpu: 50m
+            memory: 100Mi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ibm-aiops-install-instana-addons
+  namespace: ibm-installer
+spec:
+  serviceAccountname: ibm-installer-admin
+  template:
+    spec:
+      containers:
+        - name: install
+          image: quay.io/niklaushirt/ibm-aiops-tools:2.2
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "150m"
+            limits:
+              memory: "2024Mi"
+              cpu: "1200m"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              #!/bin/bash
+              #set -x
+
+              echo "*****************************************************************************************************************************"
+              echo " ✅ STARTING: INSTALL INSTANA Demo Content"
+              echo "*****************************************************************************************************************************"
+              echo ""
+              echo "  ⏳ INSTALLATION START TIMESTAMP: $(date)"
+              echo ""
+
+              if [[ $API_TOKEN == "CHANGEME" ]];
+              then
+                echo "❗ No Instana Token Provided."  
+                echo "❗ Skipping Instana Configuration"  
+              else
+
+                echo "------------------------------------------------------------------------------------------------------------------------------"
+                echo " 🚀 Prepare Helm"
+                curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+                chmod 700 get_helm.sh
+                ./get_helm.sh
+                echo ""
+                echo ""
+
+
+                # echo "------------------------------------------------------------------------------------------------------------------------------"
+                # echo " 🚀 Starting Autotrace Installation"
+                # oc create clusterrolebinding instana-autotrace-webhook-admin --clusterrole=cluster-admin --serviceaccount=instana-autotrace-webhook:instana-autotrace-webhook
+
+
+
+                # helm install --create-namespace --namespace instana-autotrace-webhook instana-autotrace-webhook \
+                #   --repo https://agents.instana.io/helm instana-autotrace-webhook \
+                #   --set webhook.imagePullCredentials.password=qUMhYJxjSv6uZh2SyqTEnw --set autotrace.opt_in=true
+
+
+
+
+                echo "------------------------------------------------------------------------------------------------------------------------------"
+                echo " 🚀 Starting SynthPop Installation"
+              cat <<EOF | oc apply -f -
+              kind: Route
+              apiVersion: route.openshift.io/v1
+              metadata:
+                name: synthetic
+                namespace: instana-core
+                labels:
+                  app.kubernetes.io/component: synthetics-acceptor
+                  app.kubernetes.io/name: instana
+                  app.kubernetes.io/part-of: core
+                  instana.io/group: service
+              spec:
+                to:
+                  kind: Service
+                  name: synthetics-acceptor
+                tls:
+                  termination: edge
+                  insecureEdgeTerminationPolicy: Allow
+                  certificate: ''
+                  key: ''
+                  caCertificate: ''
+                  destinationCACertificate: ''
+                path: /synthetics
+                port:
+                  targetPort: http-service
+              EOF
+
+                sleep 15
+
+                synthURL=$(oc get routes -n instana-core synthetic  -o jsonpath="{['spec']['host']}")|| true
+
+                helm install synthetic-pop \
+                    --repo https://agents.instana.io/helm  \
+                    --namespace instana-synthetic \
+                    --create-namespace \
+                    --set downloadKey="qUMhYJxjSv6uZh2SyqTEnw" \
+                    --set controller.location="DemoPOP;My PoP;Switzerland;Geneva;46.20;6.14;This is a demo Synthetic Point of Presence" \
+                    --set controller.instanaKey="qUMhYJxjSv6uZh2SyqTEnw" \
+                    --set controller.instanaSyntheticEndpoint="https://$synthURL" \
+                    --set redis.tls.enabled=false \
+                    --set redis.password="a1fc5d01bcbb" \
+                    synthetic-pop
+
+                helm list -n instana-synthetic
+
+
+                echo ""
+                echo ""
+                echo ""
+                echo ""
+                echo "------------------------------------------------------------------------------------------------------------------------------"
+                echo " 🚀 Starting Instana Configuration"
+
+                export appURL=$(oc get routes -n instana-core dev-aiops  -o jsonpath="{['spec']['host']}")|| true
+                export eumURL=$(oc get routes -n instana-core eum  -o jsonpath="{['spec']['host']}")|| true
+
+
+
+                echo "------------------------------------------------------------------------------------------------------------------------------"
+                echo " 🚀 Create MOBILEPP"
+
+                curl -k -s -X 'POST' "https://$appURL/api/mobile-app-monitoring/config?name=RobotShop" --header "authorization: apiToken $API_TOKEN"
+
+                echo "✅ APIURL        : https://$appURL"  
+                echo "✅ APITOKEN      : $API_TOKEN"  
+                echo "✅ REPORTINGURL  : https://$eumURL/mobile"  
+                echo "✅ REPORTINGKEY  : "$(curl -k -s -X 'GET' "https://$appURL/api/mobile-app-monitoring/config?name=RobotShop" --header "authorization: apiToken $API_TOKEN"|jq -r '.[0].id')
+                echo ""
+                echo ""
+                echo "YAML:"
+                echo "            - name: REPORT_ENV"
+                echo "              value: demoeu"
+                echo "            - name: DEBUG"
+                echo "              value: 'true'"
+                echo "            - name: PLAYBOOK"
+                echo "              value: robotshop"
+                echo "            - name: APIURL"
+                echo "              value: https://$appURL"
+                echo "            - name: APITOKEN"
+                echo "              value: $API_TOKEN"
+                echo "            - name: REPORTINGURL"
+                echo "              value: https://$eumURL/mobile"
+                echo "            - name: REPORTINGKEY"
+                echo "              value: "$(curl -k -s -X 'GET' "https://$appURL/api/mobile-app-monitoring/config?name=RobotShop" --header "authorization: apiToken $API_TOKEN"|jq -r '.[0].id')
+                echo "            - name: DOCKER"
+                echo "              value: 'true'"
+                echo ""
+                echo ""
+                oc set env deployment instana-mobile-eum-sim -n robot-shop APIURL="https://$appURL"
+                oc set env deployment instana-mobile-eum-sim -n robot-shop APITOKEN="$API_TOKEN"
+                oc set env deployment instana-mobile-eum-sim -n robot-shop REPORTINGURL="https://$eumURL/mobile"
+                oc set env deployment instana-mobile-eum-sim -n robot-shop REPORTINGKEY="$(curl -k -s -X 'GET' "https://$appURL/api/mobile-app-monitoring/config?name=RobotShop" --header "authorization: apiToken $API_TOKEN"|jq -r '.[0].id')"
+
+                echo ""
+                echo ""
+                echo ""
+
+
+
+                echo "------------------------------------------------------------------------------------------------------------------------------"
+                echo " 🚀 Create WEBAPP"
+
+                curl -k -s -X 'POST' "https://$appURL/api/website-monitoring/config?name=RobotShop" --header "authorization: apiToken $API_TOKEN"
+
+                echo "✅ API_URL  : https://$eumURL"  
+                echo "✅ API_KEY  : "$(curl -k -s -X 'GET' "https://$appURL/api/website-monitoring/config?name=RobotShop" --header "authorization: apiToken $API_TOKEN"|jq -r '.[0].id')
+                echo ""
+                echo ""
+                echo "YAML:"
+                echo "            - name: API_URL"
+                echo "              value: https://$eumURL"
+                echo "            - name: API_KEY"
+                echo "              value: "$(curl -k -s -X 'GET' "https://$appURL/api/website-monitoring/config?name=RobotShop" --header "authorization: apiToken $API_TOKEN"|jq -r '.[0].id')
+                echo ""
+                echo ""
+                oc set env deployment instana-webpage-eum-sim -n robot-shop API_URL="https://$eumURL"
+                oc set env deployment instana-webpage-eum-sim -n robot-shop API_KEY="$(curl -k -s -X 'GET' "https://$appURL/api/website-monitoring/config?name=RobotShop" --header "authorization: apiToken $API_TOKEN"|jq -r '.[0].id')"
+
+                echo ""
+                echo ""
+                echo ""
+
+                echo "------------------------------------------------------------------------------------------------------------------------------"
+                echo " 🚀 Create APPS"
+
+                echo "✅ Instana Token Provided."  
+                echo ""
+                echo ""
+    
+                export result=$(curl -k -s --request POST --url https://$appURL/api/application-monitoring/settings/application -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                  --header "authorization: apiToken $API_TOKEN" \
+                  -d '{
+                  "label": "RobotShop",
+                  "matchSpecification": null,
+                  "tagFilterExpression": {
+                    "type": "TAG_FILTER",
+                    "name": "kubernetes.namespace",
+                    "stringValue": "robot-shop",
+                    "numberValue": null,
+                    "booleanValue": null,
+                    "key": null,
+                    "value": "robot-shop",
+                    "operator": "EQUALS",
+                    "entity": "DESTINATION"
+                  },
+                  "scope": "INCLUDE_ALL_DOWNSTREAM",
+                  "boundaryScope": "ALL",
+                  "accessRules": [
+                    {
+                      "accessType": "READ_WRITE",
+                      "relationType": "GLOBAL",
+                      "relatedId": null
+                    }
+                  ]
+                }')
+                echo "RobotShop App: $result"
+
+                export appID=$(echo $result |jq -r '.id')
+                echo "RobotShop App ID: $appID"
+
+
+
+
+
+                curl -k -s --request POST --url https://$appURL/api/application-monitoring/settings/application -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                  --header "authorization: apiToken $API_TOKEN" \
+                  -d '{
+                  "label": "SockShop",
+                  "matchSpecification": null,
+                  "tagFilterExpression": {
+                    "type": "TAG_FILTER",
+                    "name": "kubernetes.namespace",
+                    "stringValue": "sock-shop",
+                    "numberValue": null,
+                    "booleanValue": null,
+                    "key": null,
+                    "value": "sock-shop",
+                    "operator": "EQUALS",
+                    "entity": "DESTINATION"
+                  },
+                  "scope": "INCLUDE_ALL_DOWNSTREAM",
+                  "boundaryScope": "ALL",
+                  "accessRules": [
+                    {
+                      "accessType": "READ_WRITE",
+                      "relationType": "GLOBAL",
+                      "relatedId": null
+                    }
+                  ]
+                }'
+
+
+
+                curl -k -s --request POST --url https://$appURL/api/application-monitoring/settings/application -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                  --header "authorization: apiToken $API_TOKEN" \
+                  -d '{
+                  "label": "DemoUI",
+                  "matchSpecification": null,
+                  "tagFilterExpression": {
+                    "type": "TAG_FILTER",
+                    "name": "kubernetes.namespace",
+                    "stringValue": "ibm-aiops-demo-ui",
+                    "numberValue": null,
+                    "booleanValue": null,
+                    "key": null,
+                    "value": "ibm-aiops-demo-ui",
+                    "operator": "EQUALS",
+                    "entity": "DESTINATION"
+                  },
+                  "scope": "INCLUDE_ALL_DOWNSTREAM",
+                  "boundaryScope": "ALL",
+                  "accessRules": [
+                    {
+                      "accessType": "READ_WRITE",
+                      "relationType": "GLOBAL",
+                      "relatedId": null
+                    }
+                  ]
+                }'
+
+
+                curl -k -s --request POST --url https://$appURL/api/application-monitoring/settings/application -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                  --header "authorization: apiToken $API_TOKEN" \
+                  -d '{
+                  "label": "ibm-cert-manager",
+                  "matchSpecification": null,
+                  "tagFilterExpression": {
+                    "type": "TAG_FILTER",
+                    "name": "kubernetes.namespace",
+                    "stringValue": "ibm-cert-manager",
+                    "numberValue": null,
+                    "booleanValue": null,
+                    "key": null,
+                    "value": "ibm-cert-manager",
+                    "operator": "EQUALS",
+                    "entity": "DESTINATION"
+                  },
+                  "scope": "INCLUDE_ALL_DOWNSTREAM",
+                  "boundaryScope": "ALL",
+                  "accessRules": [
+                    {
+                      "accessType": "READ_WRITE",
+                      "relationType": "GLOBAL",
+                      "relatedId": null
+                    }
+                  ]
+                }'
+
+
+                curl -k -s --request POST --url https://$appURL/api/application-monitoring/settings/application -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                  --header "authorization: apiToken $API_TOKEN" \
+                  -d '{
+                  "label": "AWX",
+                  "matchSpecification": null,
+                  "tagFilterExpression": {
+                    "type": "TAG_FILTER",
+                    "name": "kubernetes.namespace",
+                    "stringValue": "awx",
+                    "numberValue": null,
+                    "booleanValue": null,
+                    "key": null,
+                    "value": "awx",
+                    "operator": "EQUALS",
+                    "entity": "DESTINATION"
+                  },
+                  "scope": "INCLUDE_ALL_DOWNSTREAM",
+                  "boundaryScope": "ALL",
+                  "accessRules": [
+                    {
+                      "accessType": "READ_WRITE",
+                      "relationType": "GLOBAL",
+                      "relatedId": null
+                    }
+                  ]
+                }'
+
+
+
+
+
+                curl -k -s --request POST --url https://$appURL/api/application-monitoring/settings/application -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                  --header "authorization: apiToken $API_TOKEN" \
+                  -d '{
+                  "label": "Instana",
+                  "matchSpecification": null,
+                  "tagFilterExpression": {
+                    "type": "EXPRESSION",
+                    "logicalOperator": "OR",
+                    "elements": [
+                      {
+                        "type": "TAG_FILTER",
+                        "name": "kubernetes.namespace",
+                        "stringValue": "instana-unit",
+                        "numberValue": null,
+                        "booleanValue": null,
+                        "key": null,
+                        "value": "instana-unit",
+                        "operator": "EQUALS",
+                        "entity": "DESTINATION"
+                      },
+                    {
+                        "type": "TAG_FILTER",
+                        "name": "kubernetes.namespace",
+                        "stringValue": "instana-operator",
+                        "numberValue": null,
+                        "booleanValue": null,
+                        "key": null,
+                        "value": "instana-operator",
+                        "operator": "EQUALS",
+                        "entity": "DESTINATION"
+                      },
+                      {
+                        "type": "TAG_FILTER",
+                        "name": "kubernetes.namespace",
+                        "stringValue": "instana-core",
+                        "numberValue": null,
+                        "booleanValue": null,
+                        "key": null,
+                        "value": "instana-core",
+                        "operator": "EQUALS",
+                        "entity": "DESTINATION"
+                      },
+                      {
+                        "type": "TAG_FILTER",
+                        "name": "kubernetes.namespace",
+                        "stringValue": "instana-datastores",
+                        "numberValue": null,
+                        "booleanValue": null,
+                        "key": null,
+                        "value": "instana-datastores",
+                        "operator": "EQUALS",
+                        "entity": "DESTINATION"
+                      }
+                    ]
+                  },
+                  "scope": "INCLUDE_ALL_DOWNSTREAM",
+                  "boundaryScope": "ALL",
+                  "accessRules": [
+                    {
+                      "accessType": "READ_WRITE",
+                      "relationType": "GLOBAL",
+                      "relatedId": null
+                    }
+                  ]
+                }'
+
+
+
+                curl -k -s --request POST --url https://$appURL/api/application-monitoring/settings/application -H 'Content-Type: application/json' -H 'Accept: application/json' \
+                  --header "authorization: apiToken $API_TOKEN" \
+                  -d '{
+                  "label": "WAIOps",
+                  "matchSpecification": null,
+                  "tagFilterExpression": {
+                    "type": "EXPRESSION",
+                    "logicalOperator": "OR",
+                    "elements": [
+                      {
+                        "type": "TAG_FILTER",
+                        "name": "kubernetes.namespace",
+                        "stringValue": "ibm-aiops",
+                        "numberValue": null,
+                        "booleanValue": null,
+                        "key": null,
+                        "value": "ibm-aiops",
+                        "operator": "EQUALS",
+                        "entity": "DESTINATION"
+                      },
+                      {
+                        "type": "TAG_FILTER",
+                        "name": "kubernetes.namespace",
+                        "stringValue": "awx",
+                        "numberValue": null,
+                        "booleanValue": null,
+                        "key": null,
+                        "value": "awx",
+                        "operator": "EQUALS",
+                        "entity": "DESTINATION"
+                      },
+                      {
+                        "type": "TAG_FILTER",
+                        "name": "kubernetes.namespace",
+                        "stringValue": "openldap",
+                        "numberValue": null,
+                        "booleanValue": null,
+                        "key": null,
+                        "value": "openldap",
+                        "operator": "EQUALS",
+                        "entity": "DESTINATION"
+                      },
+                      {
+                        "type": "TAG_FILTER",
+                        "name": "kubernetes.namespace",
+                        "stringValue": "ibm-aiops-demo-ui",
+                        "numberValue": null,
+                        "booleanValue": null,
+                        "key": null,
+                        "value": "ibm-aiops-demo-ui",
+                        "operator": "EQUALS",
+                        "entity": "DESTINATION"
+                      },
+                      {
+                        "type": "TAG_FILTER",
+                        "name": "kubernetes.namespace",
+                        "stringValue": "ibm-common-services",
+                        "numberValue": null,
+                        "booleanValue": null,
+                        "key": null,
+                        "value": "ibm-common-services",
+                        "operator": "EQUALS",
+                        "entity": "DESTINATION"
+                      }
+                    ]
+                  },
+                  "scope": "INCLUDE_ALL_DOWNSTREAM",
+                  "boundaryScope": "ALL",
+                  "accessRules": [
+                    {
+                      "accessType": "READ_WRITE",
+                      "relationType": "GLOBAL",
+                      "relatedId": null
+                    }
+                  ]
+                }'
+
+                echo "------------------------------------------------------------------------------------------------------------------------------"
+                echo " 🚀 Create SLOS"
+
+                  curl -k -s --request POST --url https://$appURL/api/settings/slo -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                    --header "authorization: apiToken $API_TOKEN" \
+                    -d '{
+                            "name": "SLO RobotShop Ratio - Rolling one Day",
+                            "target": 0.9999,
+                            "lastUpdated": 1713201194929,
+                            "entity": {
+                              "type": "application",
+                              "applicationId": "'$appID'",
+                              "serviceId": null,
+                              "endpointId": null,
+                              "boundaryScope": "ALL",
+                              "includeInternal": false,
+                              "includeSynthetic": false,
+                              "tagFilterExpression": {
+                                "type": "EXPRESSION",
+                                "logicalOperator": "AND",
+                                "elements": []
+                              }
+                            },
+                            "indicator": {
+                              "type": "eventBased",
+                              "threshold": 0.0,
+                              "aggregation": null,
+                              "badEventsFilter": {
+                                "type": "TAG_FILTER",
+                                "name": "call.erroneous",
+                                "stringValue": null,
+                                "numberValue": null,
+                                "booleanValue": true,
+                                "key": null,
+                                "value": null,
+                                "operator": "EQUALS",
+                                "entity": "NOT_APPLICABLE"
+                              },
+                              "goodEventsFilter": {
+                                "type": "TAG_FILTER",
+                                "name": "call.erroneous",
+                                "stringValue": null,
+                                "numberValue": null,
+                                "booleanValue": false,
+                                "key": null,
+                                "value": null,
+                                "operator": "EQUALS",
+                                "entity": "NOT_APPLICABLE"
+                              },
+                              "blueprint": "availability"
+                            },
+                           "timeWindow": {
+                              "type": "rolling",
+                              "duration": 1,
+                              "durationUnit": "day"
+                            },
+                            "tags": []
+                          }'
+
+                  curl -k -s --request POST --url https://$appURL/api/settings/slo -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                    --header "authorization: apiToken $API_TOKEN" \
+                    -d '{
+                            "name": "SLO RobotShop Ratio - Rolling one Week",
+                            "target": 0.9999,
+                            "lastUpdated": 1713201194929,
+                            "entity": {
+                              "type": "application",
+                              "applicationId": "'$appID'",
+                              "serviceId": null,
+                              "endpointId": null,
+                              "boundaryScope": "ALL",
+                              "includeInternal": false,
+                              "includeSynthetic": false,
+                              "tagFilterExpression": {
+                                "type": "EXPRESSION",
+                                "logicalOperator": "AND",
+                                "elements": []
+                              }
+                            },
+                            "indicator": {
+                              "type": "eventBased",
+                              "threshold": 0.0,
+                              "aggregation": null,
+                              "badEventsFilter": {
+                                "type": "TAG_FILTER",
+                                "name": "call.erroneous",
+                                "stringValue": null,
+                                "numberValue": null,
+                                "booleanValue": true,
+                                "key": null,
+                                "value": null,
+                                "operator": "EQUALS",
+                                "entity": "NOT_APPLICABLE"
+                              },
+                              "goodEventsFilter": {
+                                "type": "TAG_FILTER",
+                                "name": "call.erroneous",
+                                "stringValue": null,
+                                "numberValue": null,
+                                "booleanValue": false,
+                                "key": null,
+                                "value": null,
+                                "operator": "EQUALS",
+                                "entity": "NOT_APPLICABLE"
+                              },
+                              "blueprint": "availability"
+                            },
+                           "timeWindow": {
+                              "type": "rolling",
+                              "duration": 1,
+                              "durationUnit": "week"
+                            },
+                            "tags": []
+                          }'
+
+
+                  curl -k -s --request POST --url https://$appURL/api/settings/slo -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                    --header "authorization: apiToken $API_TOKEN" \
+                    -d '{
+                            "name": "SLO RobotShop Ratio - Fixed one Day",
+                            "target": 0.9999,
+                            "lastUpdated": 1713201194929,
+                            "entity": {
+                              "type": "application",
+                              "applicationId": "'$appID'",
+                              "serviceId": null,
+                              "endpointId": null,
+                              "boundaryScope": "ALL",
+                              "includeInternal": false,
+                              "includeSynthetic": false,
+                              "tagFilterExpression": {
+                                "type": "EXPRESSION",
+                                "logicalOperator": "AND",
+                                "elements": []
+                              }
+                            },
+                            "indicator": {
+                              "type": "eventBased",
+                              "threshold": 0.0,
+                              "aggregation": null,
+                              "badEventsFilter": {
+                                "type": "TAG_FILTER",
+                                "name": "call.erroneous",
+                                "stringValue": null,
+                                "numberValue": null,
+                                "booleanValue": true,
+                                "key": null,
+                                "value": null,
+                                "operator": "EQUALS",
+                                "entity": "NOT_APPLICABLE"
+                              },
+                              "goodEventsFilter": {
+                                "type": "TAG_FILTER",
+                                "name": "call.erroneous",
+                                "stringValue": null,
+                                "numberValue": null,
+                                "booleanValue": false,
+                                "key": null,
+                                "value": null,
+                                "operator": "EQUALS",
+                                "entity": "NOT_APPLICABLE"
+                              },
+                              "blueprint": "availability"
+                            },
+                            "timeWindow": {
+                              "type": "fixed",
+                              "duration": 1,
+                              "durationUnit": "day",
+                              "startTimestamp": 1713132000000
+                            },
+                            "tags": []
+                          }'
+
+
+
+                  curl -k -s --request POST --url https://$appURL/api/settings/slo -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                    --header "authorization: apiToken $API_TOKEN" \
+                    -d '{
+                          "name": "SLO RobotShop Custom",
+                          "target": 0.9999,
+                          "lastUpdated": 1713201763329,
+                          "entity": {
+                            "type": "application",
+                            "applicationId": "'$appID'",
+                            "serviceId": null,
+                            "endpointId": null,
+                            "boundaryScope": "ALL",
+                            "includeInternal": false,
+                            "includeSynthetic": false,
+                            "tagFilterExpression": {
+                              "type": "EXPRESSION",
+                              "logicalOperator": "AND",
+                              "elements": []
+                            }
+                          },
+                          "indicator": {
+                            "type": "eventBased",
+                            "goodEventsFilter": {
+                              "type": "EXPRESSION",
+                              "logicalOperator": "AND",
+                              "elements": []
+                            },
+                            "badEventsFilter": {
+                              "type": "EXPRESSION",
+                              "logicalOperator": "AND",
+                              "elements": []
+                            },
+                            "threshold": 0.0,
+                            "aggregation": "MEAN",
+                            "blueprint": "custom"
+                          },
+                         "timeWindow": {
+                            "type": "rolling",
+                            "duration": 1,
+                            "durationUnit": "day"
+                          },
+                          "tags": []
+                          }'
+
+                echo "------------------------------------------------------------------------------------------------------------------------------"
+                echo " 🚀 Create SMART ALERT"
+
+                  curl -k -s --request POST --url https://$appURL/api/events/settings/application-alert-configs -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                    --header "authorization: apiToken $API_TOKEN" \
+                    -d '{
+                            "name": "Erroneous call rate on Robot Shop is higher than normal",
+                            "description": "The erroneous call rate on Robot Shop is higher or equal to 1%.",
+                            "boundaryScope": "ALL",
+                            "applicationId": "'$appID'",
+                            "applications": {
+                              "'$appID'": {
+                                "applicationId": "'$appID'",
+                                "inclusive": true,
+                                "services": {}
+                              }
+                            },
+                            "severity": 5,
+                            "triggering": true,
+                            "tagFilterExpression": {
+                              "type": "EXPRESSION",
+                              "logicalOperator": "AND",
+                              "elements": []
+                            },
+                            "includeInternal": false,
+                            "includeSynthetic": false,
+                            "rule": {
+                              "alertType": "errors",
+                              "metricName": "errors",
+                              "aggregation": "MEAN"
+                            },
+                            "threshold": {
+                              "type": "staticThreshold",
+                              "operator": ">=",
+                              "value": 0.01,
+                              "lastUpdated": 0
+                            },
+                            "alertChannelIds": [
+                              "dVAvFad4OEEs-z"
+                            ],
+                            "granularity": 60000,
+                            "timeThreshold": {
+                              "type": "violationsInSequence",
+                              "timeWindow": 60000
+                            },
+                            "evaluationType": "PER_AP",
+                            "customPayloadFields": [],
+                            "readOnly": false,
+                            "enabled": true,
+                            "derivedFromGlobalAlert": false
+                          }'
+
+
+
+                echo "------------------------------------------------------------------------------------------------------------------------------"
+                echo " 🚀 Create POLICIES"
+
+                  curl -k -s --request POST --url https://$appURL/api/automation/settings/policies -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                    --header "authorization: apiToken $API_TOKEN" \
+                    -d '{
+                    "name": "Manual Action Endpoint",
+                    "description": "Sample Manual Action",
+                    "tags": [],
+                    "trigger": {
+                      "type": "builtinEvent",
+                      "id": "2kEfyFXXRheJL7PTwwZoQcGXiII",
+                      "name": "Sudden increase in erroneous call rate"
+                    },
+                    "typeConfigurations": [
+                      {
+                        "name": "manual",
+                        "runnable": {
+                          "type": "action",
+                          "id": "5d8e6663-8ff3-3540-8c24-d2f712213ab8",
+                          "runConfiguration": {
+                            "actions": [
+                              {
+                                "action": {
+                                  "id": "5d8e6663-8ff3-3540-8c24-d2f712213ab8",
+                                  "name": "SAMPLE: Instana documentation",
+                                  "description": "Sample documentation link for Instana documentation",
+                                  "type": "doc_link",
+                                  "fields": [
+                                    {
+                                      "name": "URL",
+                                      "description": "URL to remediation documentation",
+                                      "encoding": "UTF8",
+                                      "value": "https://www.ibm.com/docs/en/instana-observability/current",
+                                      "secured": false
+                                    }
+                                  ],
+                                  "tags": [
+                                    "SAMPLE"
+                                  ],
+                                  "createdAt": 1685991624.433759000,
+                                  "modifiedAt": 1687380306.093920000,
+                                  "metadata": {
+                                    "readOnly": true,
+                                    "builtIn": true,
+                                    "sensorImported": false,
+                                    "ai": null
+                                  }
+                                },
+                                "agentId": "",
+                                "inputParameterValues": []
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                '
+
+                  curl -k -s --request POST --url https://$appURL/api/automation/settings/policies -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                    --header "authorization: apiToken $API_TOKEN" \
+                    -d '{
+                    "name": "Manual Action Service",
+                    "description": "Sample Manual Action",
+                    "tags": [],
+                    "trigger": {
+                      "type": "builtinEvent",
+                      "id": "xEnrLfdCV4dls-FGxhSTpMKc09Q",
+                      "name": "Sudden increase in erroneous call rate"
+                    },
+                    "typeConfigurations": [
+                      {
+                        "name": "manual",
+                        "runnable": {
+                          "type": "action",
+                          "id": "5d8e6663-8ff3-3540-8c24-d2f712213ab8",
+                          "runConfiguration": {
+                            "actions": [
+                              {
+                                "action": {
+                                  "id": "5d8e6663-8ff3-3540-8c24-d2f712213ab8",
+                                  "name": "SAMPLE: Instana documentation",
+                                  "description": "Sample documentation link for Instana documentation",
+                                  "type": "doc_link",
+                                  "fields": [
+                                    {
+                                      "name": "URL",
+                                      "description": "URL to remediation documentation",
+                                      "encoding": "UTF8",
+                                      "value": "https://www.ibm.com/docs/en/instana-observability/current",
+                                      "secured": false
+                                    }
+                                  ],
+                                  "tags": [
+                                    "SAMPLE"
+                                  ],
+                                  "createdAt": 1685991624.433759000,
+                                  "modifiedAt": 1687380306.093920000,
+                                  "metadata": {
+                                    "readOnly": true,
+                                    "builtIn": true,
+                                    "sensorImported": false,
+                                    "ai": null
+                                  }
+                                },
+                                "agentId": "",
+                                "inputParameterValues": []
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                '
+
+
+                  curl -k -s --request POST --url https://$appURL/api/automation/settings/policies -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                    --header "authorization: apiToken $API_TOKEN" \
+                    -d '{
+                    "name": "Manual Action Application",
+                    "description": "Sample Manual Action",
+                    "tags": [],
+                    "trigger": {
+                      "type": "builtinEvent",
+                      "id": "XMsT4IXdb-C2ATvI1qoMfvSiUWc",
+                      "name": "Sudden increase in erroneous call rate"
+                    },
+                    "typeConfigurations": [
+                      {
+                        "name": "manual",
+                        "runnable": {
+                          "type": "action",
+                          "id": "5d8e6663-8ff3-3540-8c24-d2f712213ab8",
+                          "runConfiguration": {
+                            "actions": [
+                              {
+                                "action": {
+                                  "id": "5d8e6663-8ff3-3540-8c24-d2f712213ab8",
+                                  "name": "SAMPLE: Instana documentation",
+                                  "description": "Sample documentation link for Instana documentation",
+                                  "type": "doc_link",
+                                  "fields": [
+                                    {
+                                      "name": "URL",
+                                      "description": "URL to remediation documentation",
+                                      "encoding": "UTF8",
+                                      "value": "https://www.ibm.com/docs/en/instana-observability/current",
+                                      "secured": false
+                                    }
+                                  ],
+                                  "tags": [
+                                    "SAMPLE"
+                                  ],
+                                  "createdAt": 1685991624.433759000,
+                                  "modifiedAt": 1687380306.093920000,
+                                  "metadata": {
+                                    "readOnly": true,
+                                    "builtIn": true,
+                                    "sensorImported": false,
+                                    "ai": null
+                                  }
+                                },
+                                "agentId": "",
+                                "inputParameterValues": []
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                '
+
+
+
+                curl -k -s --request POST --url https://$appURL/api/automation/settings/policies -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                    --header "authorization: apiToken $API_TOKEN" \
+                    -d '{
+                    "name": "Automatic Action Endpoint",
+                    "description": "Sample Automatic Action",
+                    "tags": [],
+                    "trigger": {
+                      "type": "builtinEvent",
+                      "id": "2kEfyFXXRheJL7PTwwZoQcGXiII",
+                      "name": "Sudden increase in erroneous call rate"
+                    },
+                    "typeConfigurations": [
+                      {
+                        "name": "automatic",
+                        "condition": {
+                          "query": null
+                        },
+                        "runnable": {
+                          "type": "action",
+                          "id": "daa60cb8-41fc-3d4c-868f-3c2aca5831fa",
+                          "runConfiguration": {
+                            "actions": [
+                              {
+                                "action": {
+                                  "id": "daa60cb8-41fc-3d4c-868f-3c2aca5831fa",
+                                  "name": "SAMPLE: Parameter test",
+                                  "description": "Sample script to demonstrate parameter usage",
+                                  "type": "SCRIPT",
+                                  "fields": [
+                                    {
+                                      "name": "subtype",
+                                      "description": "script subtype",
+                                      "encoding": "base64",
+                                      "value": "YmFzaA==",
+                                      "secured": false
+                                    },
+                                    {
+                                      "name": "script_ssh",
+                                      "description": "script content",
+                                      "encoding": "base64",
+                                      "value": "IyEvYmluL2Jhc2gKCiMgU2FtcGxlIHNjcmlwdCB0byBkZW1vbnN0cmF0ZSBiYXNpYyBwYXJhbWV0ZXIgdXNhZ2Ugd2l0aCBJbnN0YW5hIGF1dG9tYXRpb24KCiMgQWNjZXNzIGVudmlyb25tZW50IHZhcmlhYmxlIHRoYXQgaXMgZGVmaW5lZCBieSB0aGUgc2NyaXB0IHNlbnNvcgplY2hvICJIZWxsbyAkcGFyYW0xIgoKIyBMZXZlcmFnZSBwYXJhbWV0ZXIgc3Vic3RpdHV0aW9uCmVjaG8gIkF1dG9tYXRpb24gd2l0aCBJbnN0YW5hIGlzIEBAcGFyYW0yQEAi",
+                                      "secured": false
+                                    }
+                                  ],
+                                  "inputParameters": [
+                                    {
+                                      "name": "param1",
+                                      "label": "Parameter 1",
+                                      "description": "Parameter 1",
+                                      "required": true,
+                                      "hidden": false,
+                                      "secured": false,
+                                      "type": "static",
+                                      "value": "Instana",
+                                      "valueType": "string"
+                                    },
+                                    {
+                                      "name": "param2",
+                                      "label": "Parameter 2",
+                                      "description": "Parameter 2",
+                                      "required": true,
+                                      "hidden": false,
+                                      "secured": false,
+                                      "type": "static",
+                                      "value": "fun",
+                                      "valueType": "string"
+                                    }
+                                  ],
+                                  "tags": [
+                                    "SAMPLE"
+                                  ],
+                                  "createdAt": 1713187604.311188734,
+                                  "modifiedAt": 1713187604.311188734,
+                                  "metadata": {
+                                    "readOnly": true,
+                                    "builtIn": true,
+                                    "sensorImported": false,
+                                    "ai": null
+                                  }
+                                },
+                                "agentId": "00:50:56:ff:fe:b5:a7:60",
+                                "inputParameterValues": [
+                                  {
+                                    "name": "param1",
+                                    "value": "Instana"
+                                  },
+                                  {
+                                    "name": "param2",
+                                    "value": "fun"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                '
+
+                curl -k -s --request POST --url https://$appURL/api/automation/settings/policies -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                    --header "authorization: apiToken $API_TOKEN" \
+                    -d '{
+                    "name": "Automatic Action Service",
+                    "description": "Sample Automatic Action",
+                    "tags": [],
+                    "trigger": {
+                      "type": "builtinEvent",
+                      "id": "xEnrLfdCV4dls-FGxhSTpMKc09Q",
+                      "name": "Sudden increase in erroneous call rate"
+                    },
+                    "typeConfigurations": [
+                      {
+                        "name": "automatic",
+                        "condition": {
+                          "query": null
+                        },
+                        "runnable": {
+                          "type": "action",
+                          "id": "daa60cb8-41fc-3d4c-868f-3c2aca5831fa",
+                          "runConfiguration": {
+                            "actions": [
+                              {
+                                "action": {
+                                  "id": "daa60cb8-41fc-3d4c-868f-3c2aca5831fa",
+                                  "name": "SAMPLE: Parameter test",
+                                  "description": "Sample script to demonstrate parameter usage",
+                                  "type": "SCRIPT",
+                                  "fields": [
+                                    {
+                                      "name": "subtype",
+                                      "description": "script subtype",
+                                      "encoding": "base64",
+                                      "value": "YmFzaA==",
+                                      "secured": false
+                                    },
+                                    {
+                                      "name": "script_ssh",
+                                      "description": "script content",
+                                      "encoding": "base64",
+                                      "value": "IyEvYmluL2Jhc2gKCiMgU2FtcGxlIHNjcmlwdCB0byBkZW1vbnN0cmF0ZSBiYXNpYyBwYXJhbWV0ZXIgdXNhZ2Ugd2l0aCBJbnN0YW5hIGF1dG9tYXRpb24KCiMgQWNjZXNzIGVudmlyb25tZW50IHZhcmlhYmxlIHRoYXQgaXMgZGVmaW5lZCBieSB0aGUgc2NyaXB0IHNlbnNvcgplY2hvICJIZWxsbyAkcGFyYW0xIgoKIyBMZXZlcmFnZSBwYXJhbWV0ZXIgc3Vic3RpdHV0aW9uCmVjaG8gIkF1dG9tYXRpb24gd2l0aCBJbnN0YW5hIGlzIEBAcGFyYW0yQEAi",
+                                      "secured": false
+                                    }
+                                  ],
+                                  "inputParameters": [
+                                    {
+                                      "name": "param1",
+                                      "label": "Parameter 1",
+                                      "description": "Parameter 1",
+                                      "required": true,
+                                      "hidden": false,
+                                      "secured": false,
+                                      "type": "static",
+                                      "value": "Instana",
+                                      "valueType": "string"
+                                    },
+                                    {
+                                      "name": "param2",
+                                      "label": "Parameter 2",
+                                      "description": "Parameter 2",
+                                      "required": true,
+                                      "hidden": false,
+                                      "secured": false,
+                                      "type": "static",
+                                      "value": "fun",
+                                      "valueType": "string"
+                                    }
+                                  ],
+                                  "tags": [
+                                    "SAMPLE"
+                                  ],
+                                  "createdAt": 1713187604.311188734,
+                                  "modifiedAt": 1713187604.311188734,
+                                  "metadata": {
+                                    "readOnly": true,
+                                    "builtIn": true,
+                                    "sensorImported": false,
+                                    "ai": null
+                                  }
+                                },
+                                "agentId": "00:50:56:ff:fe:b5:a7:60",
+                                "inputParameterValues": [
+                                  {
+                                    "name": "param1",
+                                    "value": "Instana"
+                                  },
+                                  {
+                                    "name": "param2",
+                                    "value": "fun"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                '
+
+
+
+                curl -k -s --request POST --url https://$appURL/api/automation/settings/policies -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                    --header "authorization: apiToken $API_TOKEN" \
+                    -d '{
+                    "name": "Automatic Action Application",
+                    "description": "Sample Automatic Action",
+                    "tags": [],
+                    "trigger": {
+                      "type": "builtinEvent",
+                      "id": "XMsT4IXdb-C2ATvI1qoMfvSiUWc",
+                      "name": "Sudden increase in erroneous call rate"
+                    },
+                    "typeConfigurations": [
+                      {
+                        "name": "automatic",
+                        "condition": {
+                          "query": null
+                        },
+                        "runnable": {
+                          "type": "action",
+                          "id": "daa60cb8-41fc-3d4c-868f-3c2aca5831fa",
+                          "runConfiguration": {
+                            "actions": [
+                              {
+                                "action": {
+                                  "id": "daa60cb8-41fc-3d4c-868f-3c2aca5831fa",
+                                  "name": "SAMPLE: Parameter test",
+                                  "description": "Sample script to demonstrate parameter usage",
+                                  "type": "SCRIPT",
+                                  "fields": [
+                                    {
+                                      "name": "subtype",
+                                      "description": "script subtype",
+                                      "encoding": "base64",
+                                      "value": "YmFzaA==",
+                                      "secured": false
+                                    },
+                                    {
+                                      "name": "script_ssh",
+                                      "description": "script content",
+                                      "encoding": "base64",
+                                      "value": "IyEvYmluL2Jhc2gKCiMgU2FtcGxlIHNjcmlwdCB0byBkZW1vbnN0cmF0ZSBiYXNpYyBwYXJhbWV0ZXIgdXNhZ2Ugd2l0aCBJbnN0YW5hIGF1dG9tYXRpb24KCiMgQWNjZXNzIGVudmlyb25tZW50IHZhcmlhYmxlIHRoYXQgaXMgZGVmaW5lZCBieSB0aGUgc2NyaXB0IHNlbnNvcgplY2hvICJIZWxsbyAkcGFyYW0xIgoKIyBMZXZlcmFnZSBwYXJhbWV0ZXIgc3Vic3RpdHV0aW9uCmVjaG8gIkF1dG9tYXRpb24gd2l0aCBJbnN0YW5hIGlzIEBAcGFyYW0yQEAi",
+                                      "secured": false
+                                    }
+                                  ],
+                                  "inputParameters": [
+                                    {
+                                      "name": "param1",
+                                      "label": "Parameter 1",
+                                      "description": "Parameter 1",
+                                      "required": true,
+                                      "hidden": false,
+                                      "secured": false,
+                                      "type": "static",
+                                      "value": "Instana",
+                                      "valueType": "string"
+                                    },
+                                    {
+                                      "name": "param2",
+                                      "label": "Parameter 2",
+                                      "description": "Parameter 2",
+                                      "required": true,
+                                      "hidden": false,
+                                      "secured": false,
+                                      "type": "static",
+                                      "value": "fun",
+                                      "valueType": "string"
+                                    }
+                                  ],
+                                  "tags": [
+                                    "SAMPLE"
+                                  ],
+                                  "createdAt": 1713187604.311188734,
+                                  "modifiedAt": 1713187604.311188734,
+                                  "metadata": {
+                                    "readOnly": true,
+                                    "builtIn": true,
+                                    "sensorImported": false,
+                                    "ai": null
+                                  }
+                                },
+                                "agentId": "00:50:56:ff:fe:b5:a7:60",
+                                "inputParameterValues": [
+                                  {
+                                    "name": "param1",
+                                    "value": "Instana"
+                                  },
+                                  {
+                                    "name": "param2",
+                                    "value": "fun"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                '
+
+
+
+                  curl -k -s --request POST --url https://$appURL/api/automation/settings/policies -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                    --header "authorization: apiToken $API_TOKEN" \
+                    -d '{
+                    "name": "Manual Action Endpoint",
+                    "description": "Sample Manual Action",
+                    "tags": [],
+                    "trigger": {
+                      "type": "builtinEvent",
+                      "id": "Lnmw7K5WGEzmReLtPpP8f_YwWf0",
+                      "name": "Erroneous call rate too high"
+                    },
+                    "typeConfigurations": [
+                      {
+                        "name": "manual",
+                        "runnable": {
+                          "type": "action",
+                          "id": "5d8e6663-8ff3-3540-8c24-d2f712213ab8",
+                          "runConfiguration": {
+                            "actions": [
+                              {
+                                "action": {
+                                  "id": "5d8e6663-8ff3-3540-8c24-d2f712213ab8",
+                                  "name": "SAMPLE: Instana documentation",
+                                  "description": "Sample documentation link for Instana documentation",
+                                  "type": "doc_link",
+                                  "fields": [
+                                    {
+                                      "name": "URL",
+                                      "description": "URL to remediation documentation",
+                                      "encoding": "UTF8",
+                                      "value": "https://www.ibm.com/docs/en/instana-observability/current",
+                                      "secured": false
+                                    }
+                                  ],
+                                  "tags": [
+                                    "SAMPLE"
+                                  ],
+                                  "createdAt": 1685991624.433759000,
+                                  "modifiedAt": 1687380306.093920000,
+                                  "metadata": {
+                                    "readOnly": true,
+                                    "builtIn": true,
+                                    "sensorImported": false,
+                                    "ai": null
+                                  }
+                                },
+                                "agentId": "",
+                                "inputParameterValues": []
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                '
+
+                curl -k -s --request POST --url https://$appURL/api/automation/settings/policies -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                    --header "authorization: apiToken $API_TOKEN" \
+                    -d '{
+                    "name": "Automatic Action Endpoint",
+                    "description": "Sample Automatic Action",
+                    "tags": [],
+                    "trigger": {
+                      "type": "builtinEvent",
+                      "id": "Lnmw7K5WGEzmReLtPpP8f_YwWf0",
+                      "name": "Erroneous call rate too high"
+                    },
+                    "typeConfigurations": [
+                      {
+                        "name": "automatic",
+                        "condition": {
+                          "query": null
+                        },
+                        "runnable": {
+                          "type": "action",
+                          "id": "daa60cb8-41fc-3d4c-868f-3c2aca5831fa",
+                          "runConfiguration": {
+                            "actions": [
+                              {
+                                "action": {
+                                  "id": "daa60cb8-41fc-3d4c-868f-3c2aca5831fa",
+                                  "name": "SAMPLE: Parameter test",
+                                  "description": "Sample script to demonstrate parameter usage",
+                                  "type": "SCRIPT",
+                                  "fields": [
+                                    {
+                                      "name": "subtype",
+                                      "description": "script subtype",
+                                      "encoding": "base64",
+                                      "value": "YmFzaA==",
+                                      "secured": false
+                                    },
+                                    {
+                                      "name": "script_ssh",
+                                      "description": "script content",
+                                      "encoding": "base64",
+                                      "value": "IyEvYmluL2Jhc2gKCiMgU2FtcGxlIHNjcmlwdCB0byBkZW1vbnN0cmF0ZSBiYXNpYyBwYXJhbWV0ZXIgdXNhZ2Ugd2l0aCBJbnN0YW5hIGF1dG9tYXRpb24KCiMgQWNjZXNzIGVudmlyb25tZW50IHZhcmlhYmxlIHRoYXQgaXMgZGVmaW5lZCBieSB0aGUgc2NyaXB0IHNlbnNvcgplY2hvICJIZWxsbyAkcGFyYW0xIgoKIyBMZXZlcmFnZSBwYXJhbWV0ZXIgc3Vic3RpdHV0aW9uCmVjaG8gIkF1dG9tYXRpb24gd2l0aCBJbnN0YW5hIGlzIEBAcGFyYW0yQEAi",
+                                      "secured": false
+                                    }
+                                  ],
+                                  "inputParameters": [
+                                    {
+                                      "name": "param1",
+                                      "label": "Parameter 1",
+                                      "description": "Parameter 1",
+                                      "required": true,
+                                      "hidden": false,
+                                      "secured": false,
+                                      "type": "static",
+                                      "value": "Instana",
+                                      "valueType": "string"
+                                    },
+                                    {
+                                      "name": "param2",
+                                      "label": "Parameter 2",
+                                      "description": "Parameter 2",
+                                      "required": true,
+                                      "hidden": false,
+                                      "secured": false,
+                                      "type": "static",
+                                      "value": "fun",
+                                      "valueType": "string"
+                                    }
+                                  ],
+                                  "tags": [
+                                    "SAMPLE"
+                                  ],
+                                  "createdAt": 1713187604.311188734,
+                                  "modifiedAt": 1713187604.311188734,
+                                  "metadata": {
+                                    "readOnly": true,
+                                    "builtIn": true,
+                                    "sensorImported": false,
+                                    "ai": null
+                                  }
+                                },
+                                "agentId": "00:50:56:ff:fe:b5:a7:60",
+                                "inputParameterValues": [
+                                  {
+                                    "name": "param1",
+                                    "value": "Instana"
+                                  },
+                                  {
+                                    "name": "param2",
+                                    "value": "fun"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                '
+
+
+                echo ""
+                echo ""
+                echo ""
+                echo "------------------------------------------------------------------------------------------------------------------------------"
+                echo " ⏳ Pause for 2 minutes"
+                sleep 120
+
+                echo ""
+                echo "------------------------------------------------------------------------------------------------------------------------------"
+                echo " 🚀 Starting Creation of Instana Synthetic Tests"
+                export appURL=$(oc get routes -n instana-core dev-aiops  -o jsonpath="{['spec']['host']}")|| true
+
+
+
+                export syntpop_id=$(curl -k -s --request GET --url https://$appURL/api/synthetics/settings/locations -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                  --header "authorization: apiToken $API_TOKEN"|jq -r ".[0].id")
+
+                export instana_app_id=$(curl -k -s --request GET --url https://$appURL/api/application-monitoring/applications -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                  --header "authorization: apiToken $API_TOKEN"|jq '.items[]  | select( .label == "Instana" ) '| jq -r '.id')
+
+                export robotshop_app_id=$(curl -k -s --request GET --url https://$appURL/api/application-monitoring/applications -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                  --header "authorization: apiToken $API_TOKEN"|jq '.items[]  | select( .label == "RobotShop" ) '| jq -r '.id')
+
+                export waiops_app_id=$(curl -k -s --request GET --url https://$appURL/api/application-monitoring/applications -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                  --header "authorization: apiToken $API_TOKEN"|jq '.items[]  | select( .label == "WAIOps" ) '| jq -r '.id')
+
+                export turbo_app_id=$(curl -k -s --request GET --url https://$appURL/api/application-monitoring/applications -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                  --header "authorization: apiToken $API_TOKEN"|jq '.items[]  | select( .label == "Turbonomic" ) '| jq -r '.id')
+
+
+                export robotshop_app_route=$(oc get route -n robot-shop robotshop  -o jsonpath={.spec.host})          
+                export waiops_app_route=$(oc get route -n ibm-aiops cpd  -o jsonpath={.spec.host})          
+                export openldap_app_route=$(oc get route -n openldap openldap-admin -o jsonpath={.spec.host})          
+                export awx_app_route=$(oc get route -n awx awx  -o jsonpath={.spec.host})          
+                export instana_app_route=$(oc get route -n instana-core dev-aiops  -o jsonpath={.spec.host})          
+                export turbonomic_app_route=$(oc get route -n turbonomic nginx  -o jsonpath={.spec.host})          
+
+
+                echo "syntpop_id:             $syntpop_id"
+                echo "instana_app_id:         $instana_app_id"
+                echo "instana_app_route:      $instana_app_route"
+                echo "robotshop_app_id:       $robotshop_app_id"
+                echo "robotshop_app_route:    $robotshop_app_route"
+                echo "waiops_app_id:          $waiops_app_id"
+                echo "waiops_app_route:       $waiops_app_route"
+                echo "openldap_app_route:     $openldap_app_route"
+                echo "awx_app_route:          $awx_app_route"
+                echo "turbo_app_id:           $turbo_app_id"
+                echo "turbonomic_app_route:   $turbonomic_app_route"
+
+
+                function createSynthTest(){
+                curl -k -s --request POST --url https://$appURL/api/synthetics/settings/tests -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                  --header "authorization: apiToken $API_TOKEN" \
+                  -d "  {
+                    \"tenantId\": \"onprem_aiops_dev\",
+                    \"label\": \"$currentName\",
+                    \"description\": \"\",
+                    \"active\": true,
+                    \"applicationId\":\"$currentAppID\",
+                    \"testFrequency\": 5,
+                    \"playbackMode\": \"Simultaneous\",
+                    \"locations\": [
+                      \"$currentSynthPopID\"
+                    ],
+                    \"locationLabels\": [
+                      \"DemoPOP\"
+                    ],
+                    \"locationDisplayLabels\": [
+                      \"My PoP\"
+                    ],
+                    \"configuration\": {
+                      \"syntheticType\": \"HTTPAction\",
+                      \"markSyntheticCall\": true,
+                      \"retries\": 0,
+                      \"retryInterval\": 1,
+                      \"timeout\": \"\",
+                      \"url\": \"$currentURL\",
+                      \"operation\": \"GET\",
+                      \"followRedirect\": true,
+                      \"allowInsecure\": true
+                    }
+                  }"
+                }
+
+                export currentSynthPopID=$syntpop_id
+
+                export currentName="Instana"
+                export currentAppID=$instana_app_id
+                export currentURL="https://"$instana_app_route
+                createSynthTest
+
+
+                export currentName="Turbonomic"
+                export currentAppID=$turbo_app_id
+                export currentURL="https://"$turbonomic_app_route
+                createSynthTest
+
+                export currentName="CP4WAIOps"
+                export currentAppID=$waiops_app_id
+                export currentURL="https://"$waiops_app_route
+                createSynthTest
+
+                # export currentName="OpenLdap"
+                # export currentAppID=$waiops_app_id
+                # export currentURL="https://"$openldap_app_route
+                # createSynthTest
+
+                export currentName="AWX - Ansible Tower"
+                export currentAppID=$waiops_app_id
+                export currentURL="https://"$awx_app_route
+                createSynthTest
+
+
+                export currentName="RobotShop"
+                export currentAppID=$robotshop_app_id
+                export currentURL="https://"$robotshop_app_route
+                createSynthTest
+
+                export currentName="API ratings"
+                export currentAppID=$robotshop_app_id
+                export currentURL="http://ratings.robot-shop/api/fetch/EPE"
+                createSynthTest
+
+                export currentName="API catalogue"
+                export currentAppID=$robotshop_app_id
+                export currentURL="http://catalogue.robot-shop:8080/products"
+                createSynthTest
+
+                export currentName="API ratings (upstream)"
+                export currentAppID=$robotshop_app_id
+                export currentURL="http://web.robot-shop:8080/api/ratings/api/fetch/STAN-1"
+                createSynthTest
+
+                export currentName="API catalogue (upstream)"
+                export currentAppID=$robotshop_app_id
+                export currentURL="http://web.robot-shop:8080/api/catalogue/products"
+                createSynthTest
+
+                export currentName="API shipping"
+                export currentAppID=$robotshop_app_id
+                export currentURL="http://shipping.robot-shop:8080/cities/us"
+                createSynthTest
+
+                export currentName="API user"
+                export currentAppID=$robotshop_app_id
+                export currentURL="http://user.robot-shop:8080/uniqueid"
+                createSynthTest
+
+
+                export currentName="IBM Homepage"
+                export currentAppID=$robotshop_app_id
+                export currentURL="https://ibm.com"
+                createSynthTest
+
+
+                echo ""
+                echo ""
+                echo ""
+                echo ""
+                echo "------------------------------------------------------------------------------------------------------------------------------"
+                echo " 🚀 Create CUSTOM DASHBOARDS"
+
+                curl -k -s --request POST --url https://$appURL/api/custom-dashboard -H 'Content-Type: application/json' -H 'Accept: application/json' \
+                  --header "authorization: apiToken $API_TOKEN" \
+                  -d '{
+                  "title": "RobotShop Dashboard",
+                  "matchSpecification": null,
+                  "accessRules": [
+                    {
+                      "accessType": "READ_WRITE",
+                      "relationType": "GLOBAL",
+                      "relatedId": null
+                    }
+                  ],
+                  "widgets": [
+                      {
+                        "id": "tJ0HqY266_T4uqjs",
+                        "title": "Ratings Error Rate",
+                        "width": 3,
+                        "height": 5,
+                        "x": 9,
+                        "y": 0,
+                        "type": "bigNumber",
+                        "config": {
+                          "formatter": "percentage.detailed",
+                          "comparisonDecreaseColor": "greenish",
+                          "metricConfiguration": {
+                            "includeSynthetic": false,
+                            "metric": "errors",
+                            "timeShift": -3600000,
+                            "tagFilterExpression": {
+                              "logicalOperator": "AND",
+                              "elements": [
+                                {
+                                  "name": "application.name",
+                                  "type": "TAG_FILTER",
+                                  "value": "RobotShop",
+                                  "entity": "DESTINATION",
+                                  "operator": "EQUALS"
+                                },
+                                {
+                                  "name": "service.name",
+                                  "type": "TAG_FILTER",
+                                  "value": "ratings",
+                                  "entity": "DESTINATION",
+                                  "operator": "EQUALS"
+                                }
+                              ],
+                              "type": "EXPRESSION"
+                            },
+                            "aggregation": "MEAN",
+                            "source": "APPLICATION",
+                            "includeInternal": false
+                          },
+                          "comparisonIncreaseColor": "redish"
+                        }
+                      },
+                      {
+                        "id": "UcxwW0Qxmik8DGZ4",
+                        "title": "Critical",
+                        "width": 3,
+                        "height": 5,
+                        "x": 9,
+                        "y": 18,
+                        "type": "bigNumber",
+                        "config": {
+                          "formatter": "number.compact",
+                          "comparisonDecreaseColor": "greenish",
+                          "metricConfiguration": {
+                            "dynamicFocusQuery": "event.severity:10 event.type:issue entity.kubernetes.namespace:robot-shop",
+                            "metric": "eventCount",
+                            "timeShift": -3600000,
+                            "metricLabel": "Event Count",
+                            "aggregation": "DISTINCT_COUNT",
+                            "source": "EVENT",
+                            "includeAgentMonitoringIssues": false,
+                            "includeK8sInfoEvents": false
+                          },
+                          "comparisonIncreaseColor": "redish"
+                        }
+                      },
+                      {
+                        "id": "KEv0nExySTFTd-xy",
+                        "title": "Orders",
+                        "width": 6,
+                        "height": 13,
+                        "x": 0,
+                        "y": 16,
+                        "type": "chart",
+                        "config": {
+                          "shareMaxAxisDomain": false,
+                          "y1": {
+                            "formatter": "number.compact",
+                            "renderer": "line",
+                            "metrics": [
+                              {
+                                "includeSynthetic": false,
+                                "color": "",
+                                "metric": "calls",
+                                "timeShift": 0,
+                                "tagFilterExpression": {
+                                  "logicalOperator": "OR",
+                                  "elements": [],
+                                  "type": "EXPRESSION"
+                                },
+                                "metricLabel": "",
+                                "compareToTimeShifted": false,
+                                "aggregation": "SUM",
+                                "label": "Current orders",
+                                "source": "APPLICATION",
+                                "includeInternal": false
+                              },
+                              {
+                                "includeSynthetic": false,
+                                "color": "",
+                                "metric": "calls",
+                                "timeShift": -86400000,
+                                "tagFilterExpression": {
+                                  "logicalOperator": "OR",
+                                  "elements": [],
+                                  "type": "EXPRESSION"
+                                },
+                                "metricLabel": "",
+                                "compareToTimeShifted": false,
+                                "aggregation": "SUM",
+                                "label": "Previous Orders",
+                                "source": "APPLICATION",
+                                "includeInternal": false
+                              }
+                            ]
+                          },
+                          "y2": {
+                            "formatter": "number.detailed",
+                            "renderer": "line",
+                            "metrics": []
+                          },
+                          "type": "TIME_SERIES"
+                        }
+                      },
+                      {
+                        "id": "JbK8Q1AbEXOp7TrH",
+                        "title": "Incidents",
+                        "width": 3,
+                        "height": 5,
+                        "x": 6,
+                        "y": 18,
+                        "type": "bigNumber",
+                        "config": {
+                          "formatter": "number.compact",
+                          "comparisonDecreaseColor": "greenish",
+                          "metricConfiguration": {
+                            "dynamicFocusQuery": "event.type:incident entity.kubernetes.namespace:robot-shop",
+                            "metric": "eventCount",
+                            "timeShift": -3600000,
+                            "metricLabel": "Event Count",
+                            "aggregation": "DISTINCT_COUNT",
+                            "source": "EVENT",
+                            "includeAgentMonitoringIssues": false,
+                            "includeK8sInfoEvents": false
+                          },
+                          "comparisonIncreaseColor": "redish"
+                        }
+                      },
+                      {
+                        "id": "25J_At0NBya1Vaky",
+                        "title": "❌ Logins Failed",
+                        "width": 3,
+                        "height": 5,
+                        "x": 3,
+                        "y": 11,
+                        "type": "bigNumber",
+                        "config": {
+                          "formatter": "number.compact",
+                          "comparisonDecreaseColor": "greenish",
+                          "metricConfiguration": {
+                            "includeSynthetic": false,
+                            "metric": "calls",
+                            "timeShift": -604800000,
+                            "tagFilterExpression": {
+                              "logicalOperator": "AND",
+                              "elements": [
+                                {
+                                  "name": "endpoint.name",
+                                  "type": "TAG_FILTER",
+                                  "value": "POST /login",
+                                  "entity": "DESTINATION",
+                                  "operator": "EQUALS"
+                                },
+                                {
+                                  "name": "call.erroneous",
+                                  "type": "TAG_FILTER",
+                                  "value": true,
+                                  "entity": "NOT_APPLICABLE",
+                                  "operator": "EQUALS"
+                                }
+                              ],
+                              "type": "EXPRESSION"
+                            },
+                            "aggregation": "SUM",
+                            "source": "APPLICATION",
+                            "includeInternal": false
+                          },
+                          "comparisonIncreaseColor": "redish"
+                        }
+                      },
+                      {
+                        "id": "I3v8PKYr7gk99Ydp",
+                        "title": "System State",
+                        "width": 6,
+                        "height": 19,
+                        "x": 6,
+                        "y": 23,
+                        "type": "chart",
+                        "config": {
+                          "shareMaxAxisDomain": false,
+                          "y1": {
+                            "formatter": "number.compact",
+                            "renderer": "stackedBar",
+                            "metrics": [
+                              {
+                                "dynamicFocusQuery": "event.type:incident entity.kubernetes.namespace:robot-shop",
+                                "color": "red",
+                                "metric": "eventCount",
+                                "timeShift": 0,
+                                "metricLabel": "Event Count",
+                                "compareToTimeShifted": false,
+                                "aggregation": "DISTINCT_COUNT",
+                                "label": "Incident",
+                                "source": "EVENT",
+                                "includeAgentMonitoringIssues": false,
+                                "includeK8sInfoEvents": false
+                              },
+                              {
+                                "dynamicFocusQuery": "event.severity:10 event.type:issue entity.kubernetes.namespace:robot-shop",
+                                "color": "lightBlue",
+                                "metric": "eventCount",
+                                "timeShift": 0,
+                                "metricLabel": "Event Count",
+                                "compareToTimeShifted": false,
+                                "aggregation": "DISTINCT_COUNT",
+                                "label": "Critical",
+                                "source": "EVENT",
+                                "includeAgentMonitoringIssues": false,
+                                "includeK8sInfoEvents": false
+                              }
+                            ]
+                          },
+                          "y2": {
+                            "formatter": "number.detailed",
+                            "renderer": "line",
+                            "metrics": []
+                          },
+                          "type": "TIME_SERIES"
+                        }
+                      },
+                      {
+                        "id": "XHistCNcsYQzEshk",
+                        "title": "Stans RobotShop",
+                        "width": 6,
+                        "height": 6,
+                        "x": 0,
+                        "y": 0,
+                        "type": "markdown",
+                        "config": "# 🤖 Welcome to the RobotShop Dashboard"
+                      },
+                      {
+                        "id": "MFd-AWa2ZBd0-0RM",
+                        "title": "Global Error Rate",
+                        "width": 3,
+                        "height": 5,
+                        "x": 6,
+                        "y": 0,
+                        "type": "bigNumber",
+                        "config": {
+                          "formatter": "percentage.detailed",
+                          "comparisonDecreaseColor": "greenish",
+                          "metricConfiguration": {
+                            "includeSynthetic": false,
+                            "metric": "errors",
+                            "timeShift": -3600000,
+                            "tagFilterExpression": {
+                              "name": "application.name",
+                              "type": "TAG_FILTER",
+                              "value": "RobotShop",
+                              "entity": "DESTINATION",
+                              "operator": "EQUALS"
+                            },
+                            "aggregation": "MEAN",
+                            "source": "APPLICATION",
+                            "includeInternal": false
+                          },
+                          "comparisonIncreaseColor": "redish"
+                        }
+                      },
+                      {
+                        "id": "Pfa3Xqw8QR9kYr6q",
+                        "title": "Error Rates",
+                        "width": 6,
+                        "height": 13,
+                        "x": 6,
+                        "y": 5,
+                        "type": "chart",
+                        "config": {
+                          "shareMaxAxisDomain": false,
+                          "y1": {
+                            "formatter": "percentage.detailed",
+                            "renderer": "line",
+                            "metrics": [
+                              {
+                                "includeSynthetic": true,
+                                "color": "",
+                                "metric": "errors",
+                                "timeShift": 0,
+                                "tagFilterExpression": {
+                                  "name": "application.name",
+                                  "type": "TAG_FILTER",
+                                  "value": "RobotShop",
+                                  "entity": "DESTINATION",
+                                  "operator": "EQUALS"
+                                },
+                                "metricLabel": "Erroneous Calls (rate)",
+                                "compareToTimeShifted": false,
+                                "aggregation": "MEAN",
+                                "label": "Erroneous Call Rate (RobotShop)",
+                                "source": "APPLICATION",
+                                "includeInternal": true
+                              },
+                              {
+                                "includeSynthetic": true,
+                                "color": "",
+                                "metric": "errors",
+                                "timeShift": 0,
+                                "tagFilterExpression": {
+                                  "logicalOperator": "AND",
+                                  "elements": [
+                                    {
+                                      "name": "service.name",
+                                      "type": "TAG_FILTER",
+                                      "value": "ratings",
+                                      "entity": "DESTINATION",
+                                      "operator": "EQUALS"
+                                    },
+                                    {
+                                      "name": "application.name",
+                                      "type": "TAG_FILTER",
+                                      "value": "RobotShop",
+                                      "entity": "DESTINATION",
+                                      "operator": "EQUALS"
+                                    }
+                                  ],
+                                  "type": "EXPRESSION"
+                                },
+                                "metricLabel": "Erroneous Calls (rate)",
+                                "compareToTimeShifted": false,
+                                "aggregation": "MEAN",
+                                "label": "Erroneous Call Rate (ratings Service)",
+                                "source": "APPLICATION",
+                                "includeInternal": true
+                              }
+                            ]
+                          },
+                          "y2": {
+                            "formatter": "number.detailed",
+                            "renderer": "line",
+                            "metrics": []
+                          },
+                          "type": "TIME_SERIES"
+                        }
+                      },
+                      {
+                        "id": "pbW6tK0u5NR4YPM2",
+                        "title": "💰 Payments Completed",
+                        "width": 3,
+                        "height": 5,
+                        "x": 0,
+                        "y": 6,
+                        "type": "bigNumber",
+                        "config": {
+                          "formatter": "number.compact",
+                          "comparisonDecreaseColor": "greenish",
+                          "metricConfiguration": {
+                            "includeSynthetic": false,
+                            "metric": "calls",
+                            "timeShift": -3600000,
+                            "tagFilterExpression": {
+                              "logicalOperator": "AND",
+                              "elements": [
+                                {
+                                  "name": "service.name",
+                                  "type": "TAG_FILTER",
+                                  "value": "payment",
+                                  "entity": "DESTINATION",
+                                  "operator": "EQUALS"
+                                },
+                                {
+                                  "name": "call.erroneous",
+                                  "type": "TAG_FILTER",
+                                  "value": false,
+                                  "entity": "NOT_APPLICABLE",
+                                  "operator": "EQUALS"
+                                }
+                              ],
+                              "type": "EXPRESSION"
+                            },
+                            "aggregation": "SUM",
+                            "source": "APPLICATION",
+                            "includeInternal": false
+                          },
+                          "comparisonIncreaseColor": "redish"
+                        }
+                      },
+                      {
+                        "id": "zn_EGWn0dK5JnPKL",
+                        "title": "Latency (current vs yesterday)",
+                        "width": 6,
+                        "height": 13,
+                        "x": 0,
+                        "y": 29,
+                        "type": "chart",
+                        "config": {
+                          "shareMaxAxisDomain": false,
+                          "y1": {
+                            "formatter": "latency.detailed",
+                            "renderer": "integral",
+                            "metrics": [
+                              {
+                                "includeSynthetic": false,
+                                "color": "",
+                                "metric": "latency",
+                                "timeShift": -3600000,
+                                "tagFilterExpression": {
+                                  "name": "application.name",
+                                  "type": "TAG_FILTER",
+                                  "value": "RobotShop",
+                                  "entity": "DESTINATION",
+                                  "operator": "EQUALS"
+                                },
+                                "metricLabel": "Latency",
+                                "compareToTimeShifted": false,
+                                "aggregation": "MEAN",
+                                "label": "Latency (previous hour)",
+                                "source": "APPLICATION",
+                                "includeInternal": false
+                              },
+                              {
+                                "includeSynthetic": false,
+                                "color": "",
+                                "metric": "latency",
+                                "timeShift": 0,
+                                "tagFilterExpression": {
+                                  "name": "application.name",
+                                  "type": "TAG_FILTER",
+                                  "value": "RobotShop",
+                                  "entity": "DESTINATION",
+                                  "operator": "EQUALS"
+                                },
+                                "metricLabel": "Latency",
+                                "compareToTimeShifted": false,
+                                "aggregation": "MEAN",
+                                "label": "Latency",
+                                "source": "APPLICATION",
+                                "includeInternal": false
+                              }
+                            ]
+                          },
+                          "y2": {
+                            "formatter": "number.detailed",
+                            "renderer": "line",
+                            "metrics": []
+                          },
+                          "type": "TIME_SERIES"
+                        }
+                      },
+                      {
+                        "id": "R9OABvxMKFG_BmgV",
+                        "title": "🔐 Logins Completed",
+                        "width": 3,
+                        "height": 5,
+                        "x": 0,
+                        "y": 11,
+                        "type": "bigNumber",
+                        "config": {
+                          "formatter": "number.compact",
+                          "comparisonDecreaseColor": "greenish",
+                          "metricConfiguration": {
+                            "includeSynthetic": false,
+                            "metric": "calls",
+                            "timeShift": -604800000,
+                            "tagFilterExpression": {
+                              "name": "endpoint.name",
+                              "type": "TAG_FILTER",
+                              "value": "POST /login",
+                              "entity": "DESTINATION",
+                              "operator": "EQUALS"
+                            },
+                            "aggregation": "SUM",
+                            "source": "APPLICATION",
+                            "includeInternal": false
+                          },
+                          "comparisonIncreaseColor": "redish"
+                        }
+                      },
+                      {
+                        "id": "dR75eRLJx0owaAmT",
+                        "title": "❌ Payments Failed",
+                        "width": 3,
+                        "height": 5,
+                        "x": 3,
+                        "y": 6,
+                        "type": "bigNumber",
+                        "config": {
+                          "formatter": "number.compact",
+                          "comparisonDecreaseColor": "greenish",
+                          "metricConfiguration": {
+                            "includeSynthetic": false,
+                            "metric": "calls",
+                            "timeShift": -3600000,
+                            "tagFilterExpression": {
+                              "logicalOperator": "AND",
+                              "elements": [
+                                {
+                                  "name": "call.erroneous",
+                                  "type": "TAG_FILTER",
+                                  "value": true,
+                                  "entity": "NOT_APPLICABLE",
+                                  "operator": "EQUALS"
+                                },
+                                {
+                                  "name": "service.name",
+                                  "type": "TAG_FILTER",
+                                  "value": "payment",
+                                  "entity": "DESTINATION",
+                                  "operator": "EQUALS"
+                                }
+                              ],
+                              "type": "EXPRESSION"
+                            },
+                            "aggregation": "SUM",
+                            "source": "APPLICATION",
+                            "includeInternal": false
+                          },
+                          "comparisonIncreaseColor": "redish"
+                        }
+                      }
+                    ]
+                    }'
+
+
+
+
+
+
+
+                curl -k -s --request POST --url https://$appURL/api/custom-dashboard -H 'Content-Type: application/json' -H 'Accept: application/json'  \
+                  --header "authorization: apiToken $API_TOKEN" \
+                  -d '{
+                  "title": "RobotShop SLA",
+                  "matchSpecification": null,
+                  "accessRules": [
+                    {
+                      "accessType": "READ_WRITE",
+                      "relationType": "GLOBAL",
+                      "relatedId": null
+                    }
+                  ],
+                  "widgets": [
+                    {
+                      "id": "K0l8Np_mp0WZv0yw",
+                      "title": "RobotShop Team",
+                      "width": 6,
+                      "height": 7,
+                      "x": 0,
+                      "y": 0,
+                      "type": "timeZones",
+                      "config": [
+                        {
+                          "timeZone": "Europe/Zurich",
+                          "label": ""
+                        },
+                        {
+                          "timeZone": "US/Eastern",
+                          "label": ""
+                        },
+                        {
+                          "timeZone": "Singapore",
+                          "label": ""
+                        }
+                      ]
+                    },
+                    {
+                      "id": "OvP1CNUTgoQ0blzl",
+                      "title": "Homepage (calls/s)",
+                      "width": 2,
+                      "height": 4,
+                      "x": 0,
+                      "y": 7,
+                      "type": "bigNumber",
+                      "config": {
+                        "formatter": "perSecond.detailed",
+                        "comparisonDecreaseColor": "orangish",
+                        "metricConfiguration": {
+                          "includeSynthetic": true,
+                          "metric": "calls",
+                          "timeShift": -86400000,
+                          "tagFilterExpression": {
+                            "name": "service.name",
+                            "type": "TAG_FILTER",
+                            "value": "nginx-web",
+                            "entity": "DESTINATION",
+                            "operator": "EQUALS"
+                          },
+                          "aggregation": "PER_SECOND",
+                          "source": "APPLICATION",
+                          "includeInternal": false
+                        },
+                        "comparisonIncreaseColor": "greenish"
+                      }
+                    },
+                    {
+                      "id": "rDTKyqX-Q4YpAGO-",
+                      "title": "APIs with Errors",
+                      "width": 6,
+                      "height": 16,
+                      "x": 0,
+                      "y": 11,
+                      "type": "topList",
+                      "config": {
+                        "formatter": "percentage.detailed",
+                        "metricConfiguration": {
+                          "includeSynthetic": false,
+                          "metric": "errors",
+                          "timeShift": 0,
+                          "tagFilterExpression": {
+                            "name": "application.name",
+                            "type": "TAG_FILTER",
+                            "value": "RobotShop",
+                            "entity": "DESTINATION",
+                            "operator": "EQUALS"
+                          },
+                          "aggregation": "MEAN",
+                          "source": "APPLICATION",
+                          "grouping": [
+                            {
+                              "maxResults": 5,
+                              "by": {
+                                "groupbyTag": "endpoint.name",
+                                "groupbyTagEntity": "DESTINATION",
+                                "groupbyTagSecondLevelKey": ""
+                              },
+                              "includeOthers": false,
+                              "direction": "DESC"
+                            }
+                          ],
+                          "includeInternal": false
+                        }
+                      }
+                    },
+                    {
+                      "id": "Z_NGIh1dOcozaqdB",
+                      "title": "Erroneous Calls",
+                      "width": 3,
+                      "height": 15,
+                      "x": 0,
+                      "y": 27,
+                      "type": "pie",
+                      "config": {
+                        "shareMaxAxisDomain": false,
+                        "y1": {
+                          "formatter": "number.detailed",
+                          "renderer": "pie",
+                          "metrics": [
+                            {
+                              "includeSynthetic": false,
+                              "color": "",
+                              "metric": "erroneousCalls",
+                              "timeShift": 0,
+                              "tagFilterExpression": {
+                                "name": "application.name",
+                                "type": "TAG_FILTER",
+                                "value": "RobotShop",
+                                "entity": "DESTINATION",
+                                "operator": "EQUALS"
+                              },
+                              "metricLabel": "Erroneous Calls (count)",
+                              "compareToTimeShifted": false,
+                              "aggregation": "SUM",
+                              "label": "",
+                              "source": "APPLICATION",
+                              "includeInternal": false
+                            },
+                            {
+                              "includeSynthetic": false,
+                              "color": "",
+                              "metric": "calls",
+                              "timeShift": 0,
+                              "tagFilterExpression": {
+                                "name": "application.name",
+                                "type": "TAG_FILTER",
+                                "value": "RobotShop",
+                                "entity": "DESTINATION",
+                                "operator": "EQUALS"
+                              },
+                              "metricLabel": "Calls",
+                              "compareToTimeShifted": false,
+                              "aggregation": "SUM",
+                              "label": "",
+                              "source": "APPLICATION",
+                              "includeInternal": false
+                            }
+                          ]
+                        },
+                        "y2": {
+                          "formatter": "number.detailed",
+                          "renderer": "line",
+                          "metrics": []
+                        }
+                      }
+                    },
+                    {
+                      "id": "MPpqfP1sj80rEL-L",
+                      "title": "RobotShop SLA",
+                      "width": 6,
+                      "height": 27,
+                      "x": 6,
+                      "y": 0,
+                      "type": "slo",
+                      "config": {
+                        "timeWindowDuration": 1,
+                        "sliConfigId": "KJn4G08bQqaQyzN8PmpkSQ",
+                        "entityType": "application",
+                        "timeWindowType": "rolling",
+                        "slo": 0.95,
+                        "entityId": "TLdYEg7VRMSIUBWSKTn9Ug",
+                        "timeWindowDurationUnit": "days"
+                      }
+                    },
+                    {
+                      "id": "zzHwK98nlWnifgBV",
+                      "title": "Error Call Rate",
+                      "width": 2,
+                      "height": 4,
+                      "x": 2,
+                      "y": 7,
+                      "type": "bigNumber",
+                      "config": {
+                        "formatter": "percentage.detailed",
+                        "comparisonDecreaseColor": "greenish",
+                        "metricConfiguration": {
+                          "includeSynthetic": false,
+                          "metric": "errors",
+                          "timeShift": -3600000,
+                          "tagFilterExpression": {
+                            "name": "application.name",
+                            "type": "TAG_FILTER",
+                            "value": "RobotShop",
+                            "entity": "DESTINATION",
+                            "operator": "EQUALS"
+                          },
+                          "aggregation": "MEAN",
+                          "source": "APPLICATION",
+                          "includeInternal": false
+                        },
+                        "comparisonIncreaseColor": "redish"
+                      }
+                    },
+                    {
+                      "id": "TEaNjQU-nbHVm0cL",
+                      "title": "Payment",
+                      "width": 2,
+                      "height": 4,
+                      "x": 4,
+                      "y": 7,
+                      "type": "bigNumber",
+                      "config": {
+                        "formatter": "perSecond.detailed",
+                        "comparisonDecreaseColor": "orangish",
+                        "metricConfiguration": {
+                          "includeSynthetic": false,
+                          "metric": "calls",
+                          "timeShift": 0,
+                          "tagFilterExpression": {
+                            "name": "service.name",
+                            "type": "TAG_FILTER",
+                            "value": "payment",
+                            "entity": "DESTINATION",
+                            "operator": "EQUALS"
+                          },
+                          "aggregation": "PER_SECOND",
+                          "source": "APPLICATION",
+                          "includeInternal": false
+                        },
+                        "comparisonIncreaseColor": "greenish"
+                      }
+                    }
+                  ]
+
+                }'
+              fi
+
+
+              echo ""
+              echo ""
+              echo ""
+
+              echo "------------------------------------------------------------------------------------------------------------------------------"
+              echo " ⏳ Wait 2 minutes"
+              sleep 240
+
+              echo "------------------------------------------------------------------------------------------------------------------------------"
+              echo " 🚀 Delete Job - myself"
+              oc delete job -n ibm-installer ibm-aiops-install-instana-addons
+
+              echo "*****************************************************************************************************************************"
+              echo " ✅ DONE"
+              echo "*****************************************************************************************************************************"
+
+          env:
+          - name: API_TOKEN
+            value : "CHANGEME"
+      restartPolicy: Never
+  backoffLimit: 4

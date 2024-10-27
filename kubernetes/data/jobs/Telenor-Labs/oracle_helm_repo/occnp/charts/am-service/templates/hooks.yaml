@@ -1,0 +1,721 @@
+{{- if .Values.global.amServiceEnable }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "pcf-amservice-hook-name-pre-install" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "pre-install"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "pcf-amservice-hook-name-pre-install" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+      - env:
+        - name: LOGGING_LEVEL_APP
+          value: {{ .Values.envLoggingLevelApp | quote }}
+        - name: APPLICATION_NAME
+          value: {{ .Values.appName | quote }}
+        - name: MICROSERVICE_NAME
+          value: {{ template  "am-service.fullname" .}}
+        - name: ENGINEERING_VERSION
+          value: {{ .Chart.Version | quote }}
+        - name: MARKETING_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: LOG4J2_BURST_RATE
+          value: {{ .Values.logging.burst.rate | quote }}
+        - name: LOG4J2_BURST_MAX
+          value: {{ .Values.logging.burst.max | quote }}
+        - name: HOOK_TYPE
+          value: pre-install
+        - name: HOOK_VERSION
+          value: {{ .Chart.Version | quote}}          
+        - name: HOOK_CONFIG_KEY
+          value: "public.hook.amservice"
+        - name: NF_INSTANCE_ID
+          value: {{ .Values.global.nfInstanceId | quote }}
+        - name: SERVICE_MESH_CHECK
+          value: {{ .Values.global.serviceMeshEnabled | quote }}
+        - name: ISTIO_SIDECAR_QUIT_URL
+          value: {{ .Values.global.istioSidecarQuitUrl }}
+        - name: ISTIO_SIDECAR_READY_URL
+          value: {{ .Values.global.istioSidecarReadyUrl }}
+        - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+          value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+        - name: DB_ENGINE
+          value: {{ .Values.dbConfig.dbEngine }}
+        - name: MYSQL_RELEASE_DATABASE
+          value: {{ .Values.global.releaseDbName | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ .Values.envMysqlDatabase | quote }}
+        - name: MYSQL_HOST
+          value: {{ .Values.global.envMysqlHost | quote }}
+        - name: MYSQL_PORT
+          value: {{ .Values.global.envMysqlPort | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-password
+        - name: MYSQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-username
+        {{- range $key, $val := .Values.dependencyLogging }}
+        - name: {{ $key | quote }}
+          value: {{ $val.value | quote }}
+        {{- end }}
+        name: {{ template "pcf-amservice-hook-name-pre-install" . }}
+        {{- if .Values.imageTag }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+        {{- else }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+        {{- end }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        resources:
+{{ toYaml .Values.global.hookJobResources | indent 10 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "pcf-amservice-hook-name-post-install" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "post-install"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "pcf-amservice-hook-name-post-install" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+      - env:
+        - name: LOGGING_LEVEL_APP
+          value: {{ .Values.envLoggingLevelApp | quote }}
+        - name: APPLICATION_NAME
+          value: {{ .Values.appName | quote }}
+        - name: MICROSERVICE_NAME
+          value: {{ template  "am-service.fullname" .}}
+        - name: ENGINEERING_VERSION
+          value: {{ .Chart.Version | quote }}
+        - name: MARKETING_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: LOG4J2_BURST_RATE
+          value: {{ .Values.logging.burst.rate | quote }}
+        - name: LOG4J2_BURST_MAX
+          value: {{ .Values.logging.burst.max | quote }}
+        - name: HOOK_TYPE
+          value: post-install
+        - name: HOOK_VERSION
+          value: {{ .Chart.Version | quote}}          
+        - name: HOOK_CONFIG_KEY
+          value: "public.hook.amservice"
+        - name: NF_INSTANCE_ID
+          value: {{ .Values.global.nfInstanceId | quote }}
+        - name: SERVICE_MESH_CHECK
+          value: {{ .Values.global.serviceMeshEnabled | quote }}
+        - name: ISTIO_SIDECAR_QUIT_URL
+          value: {{ .Values.global.istioSidecarQuitUrl }}
+        - name: ISTIO_SIDECAR_READY_URL
+          value: {{ .Values.global.istioSidecarReadyUrl }}
+        - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+          value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+        - name: DB_ENGINE
+          value: {{ .Values.dbConfig.dbEngine }}
+        - name: MYSQL_RELEASE_DATABASE
+          value: {{ .Values.global.releaseDbName | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ .Values.envMysqlDatabase | quote }}
+        - name: MYSQL_HOST
+          value: {{ .Values.global.envMysqlHost | quote }}
+        - name: MYSQL_PORT
+          value: {{ .Values.global.envMysqlPort | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-password
+        - name: MYSQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-username
+        {{- range $key, $val := .Values.dependencyLogging }}
+        - name: {{ $key | quote }}
+          value: {{ $val.value | quote }}
+        {{- end }}        
+        name: {{ template "pcf-amservice-hook-name-post-install" . }}
+        {{- if .Values.imageTag }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+        {{- else }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+        {{- end }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        resources:
+{{ toYaml .Values.global.hookJobResources | indent 10 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "pcf-amservice-hook-name-pre-upgrade" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "pre-upgrade"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "pcf-amservice-hook-name-pre-upgrade" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+      - env:
+        - name: LOGGING_LEVEL_APP
+          value: {{ .Values.envLoggingLevelApp | quote }}
+        - name: APPLICATION_NAME
+          value: {{ .Values.appName | quote }}
+        - name: MICROSERVICE_NAME
+          value: {{ template  "am-service.fullname" .}}
+        - name: ENGINEERING_VERSION
+          value: {{ .Chart.Version | quote }}
+        - name: MARKETING_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: LOG4J2_BURST_RATE
+          value: {{ .Values.logging.burst.rate | quote }}
+        - name: LOG4J2_BURST_MAX
+          value: {{ .Values.logging.burst.max | quote }}
+        - name: HOOK_TYPE
+          value: pre-upgrade
+        - name: HOOK_VERSION
+          value: {{ .Chart.Version | quote}}          
+        - name: HOOK_CONFIG_KEY
+          value: "public.hook.amservice"
+        - name: NF_INSTANCE_ID
+          value: {{ .Values.global.nfInstanceId | quote }}
+        - name: SERVICE_MESH_CHECK
+          value: {{ .Values.global.serviceMeshEnabled | quote }}
+        - name: ISTIO_SIDECAR_QUIT_URL
+          value: {{ .Values.global.istioSidecarQuitUrl }}
+        - name: ISTIO_SIDECAR_READY_URL
+          value: {{ .Values.global.istioSidecarReadyUrl }}          
+        - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+          value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+        - name: DB_ENGINE
+          value: {{ .Values.dbConfig.dbEngine }}
+        - name: MYSQL_RELEASE_DATABASE
+          value: {{ .Values.global.releaseDbName | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ .Values.envMysqlDatabase | quote }}
+        - name: MYSQL_HOST
+          value: {{ .Values.global.envMysqlHost | quote }}
+        - name: MYSQL_PORT
+          value: {{ .Values.global.envMysqlPort | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-password
+        - name: MYSQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-username
+        {{- range $key, $val := .Values.dependencyLogging }}
+        - name: {{ $key | quote }}
+          value: {{ $val.value | quote }}
+        {{- end }}
+        name: {{ template "pcf-amservice-hook-name-pre-upgrade" . }}
+        {{- if .Values.imageTag }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+        {{- else }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+        {{- end }}
+        imagePullPolicy: Always
+        resources:
+{{ toYaml .Values.global.hookJobResources | indent 10 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "pcf-amservice-hook-name-post-upgrade" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "post-upgrade"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "pcf-amservice-hook-name-post-upgrade" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+      - env:
+        - name: LOGGING_LEVEL_APP
+          value: {{ .Values.envLoggingLevelApp | quote }}
+        - name: APPLICATION_NAME
+          value: {{ .Values.appName | quote }}
+        - name: MICROSERVICE_NAME
+          value: {{ template  "am-service.fullname" .}}
+        - name: ENGINEERING_VERSION
+          value: {{ .Chart.Version | quote }}
+        - name: MARKETING_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: LOG4J2_BURST_RATE
+          value: {{ .Values.logging.burst.rate | quote }}
+        - name: LOG4J2_BURST_MAX
+          value: {{ .Values.logging.burst.max | quote }}
+        - name: HOOK_TYPE
+          value: post-upgrade
+        - name: HOOK_VERSION
+          value: {{ .Chart.Version | quote}}          
+        - name: HOOK_CONFIG_KEY
+          value: "public.hook.amservice"
+        - name: NF_INSTANCE_ID
+          value: {{ .Values.global.nfInstanceId | quote }}
+        - name: SERVICE_MESH_CHECK
+          value: {{ .Values.global.serviceMeshEnabled | quote }}
+        - name: ISTIO_SIDECAR_QUIT_URL
+          value: {{ .Values.global.istioSidecarQuitUrl }}
+        - name: ISTIO_SIDECAR_READY_URL
+          value: {{ .Values.global.istioSidecarReadyUrl }}          
+        - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+          value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+        - name: DB_ENGINE
+          value: {{ .Values.dbConfig.dbEngine }}
+        - name: MYSQL_RELEASE_DATABASE
+          value: {{ .Values.global.releaseDbName | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ .Values.envMysqlDatabase | quote }}
+        - name: MYSQL_HOST
+          value: {{ .Values.global.envMysqlHost | quote }}
+        - name: MYSQL_PORT
+          value: {{ .Values.global.envMysqlPort | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-password
+        - name: MYSQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-username
+        {{- range $key, $val := .Values.dependencyLogging }}
+        - name: {{ $key | quote }}
+          value: {{ $val.value | quote }}
+        {{- end }}        
+        name: {{ template "pcf-amservice-hook-name-post-upgrade" . }}
+        {{- if .Values.imageTag }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+        {{- else }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+        {{- end }}
+        imagePullPolicy: Always
+        resources:
+{{ toYaml .Values.global.hookJobResources | indent 10 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "pcf-amservice-hook-name-pre-rollback" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "pre-rollback"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "pcf-amservice-hook-name-pre-rollback" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+      - env:
+        - name: LOGGING_LEVEL_APP
+          value: {{ .Values.envLoggingLevelApp | quote }}
+        - name: APPLICATION_NAME
+          value: {{ .Values.appName | quote }}
+        - name: MICROSERVICE_NAME
+          value: {{ template  "am-service.fullname" .}}
+        - name: ENGINEERING_VERSION
+          value: {{ .Chart.Version | quote }}
+        - name: MARKETING_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: LOG4J2_BURST_RATE
+          value: {{ .Values.logging.burst.rate | quote }}
+        - name: LOG4J2_BURST_MAX
+          value: {{ .Values.logging.burst.max | quote }}
+        - name: HOOK_TYPE
+          value: pre-rollback
+        - name: HOOK_VERSION
+          value: {{ .Chart.Version | quote}}          
+        - name: HOOK_CONFIG_KEY
+          value: "public.hook.amservice"
+        - name: NF_INSTANCE_ID
+          value: {{ .Values.global.nfInstanceId | quote }}
+        - name: SERVICE_MESH_CHECK
+          value: {{ .Values.global.serviceMeshEnabled | quote }}
+        - name: ISTIO_SIDECAR_QUIT_URL
+          value: {{ .Values.global.istioSidecarQuitUrl }}
+        - name: ISTIO_SIDECAR_READY_URL
+          value: {{ .Values.global.istioSidecarReadyUrl }}          
+        - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+          value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+        - name: DB_ENGINE
+          value: {{ .Values.dbConfig.dbEngine }}
+        - name: MYSQL_RELEASE_DATABASE
+          value: {{ .Values.global.releaseDbName | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ .Values.envMysqlDatabase | quote }}
+        - name: MYSQL_HOST
+          value: {{ .Values.global.envMysqlHost | quote }}
+        - name: MYSQL_PORT
+          value: {{ .Values.global.envMysqlPort | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-password
+        - name: MYSQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-username
+        {{- range $key, $val := .Values.dependencyLogging }}
+        - name: {{ $key | quote }}
+          value: {{ $val.value | quote }}
+        {{- end }}
+        name: {{ template "pcf-amservice-hook-name-pre-rollback" . }}
+        {{- if .Values.imageTag }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+        {{- else }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+        {{- end }}
+        imagePullPolicy: Always
+        resources:
+{{ toYaml .Values.global.hookJobResources | indent 10 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "pcf-amservice-hook-name-post-rollback" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "post-rollback"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "pcf-amservice-hook-name-post-rollback" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+      - env:
+        - name: LOGGING_LEVEL_APP
+          value: {{ .Values.envLoggingLevelApp | quote }}
+        - name: APPLICATION_NAME
+          value: {{ .Values.appName | quote }}
+        - name: MICROSERVICE_NAME
+          value: {{ template  "am-service.fullname" .}}
+        - name: ENGINEERING_VERSION
+          value: {{ .Chart.Version | quote }}
+        - name: MARKETING_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: LOG4J2_BURST_RATE
+          value: {{ .Values.logging.burst.rate | quote }}
+        - name: LOG4J2_BURST_MAX
+          value: {{ .Values.logging.burst.max | quote }}
+        - name: HOOK_TYPE
+          value: post-rollback
+        - name: HOOK_VERSION
+          value: {{ .Chart.Version | quote}}          
+        - name: HOOK_CONFIG_KEY
+          value: "public.hook.amservice"
+        - name: NF_INSTANCE_ID
+          value: {{ .Values.global.nfInstanceId | quote }}
+        - name: SERVICE_MESH_CHECK
+          value: {{ .Values.global.serviceMeshEnabled | quote }}
+        - name: ISTIO_SIDECAR_QUIT_URL
+          value: {{ .Values.global.istioSidecarQuitUrl }}
+        - name: ISTIO_SIDECAR_READY_URL
+          value: {{ .Values.global.istioSidecarReadyUrl }}          
+        - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+          value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+        - name: DB_ENGINE
+          value: {{ .Values.dbConfig.dbEngine }}
+        - name: MYSQL_RELEASE_DATABASE
+          value: {{ .Values.global.releaseDbName | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ .Values.envMysqlDatabase | quote }}
+        - name: MYSQL_HOST
+          value: {{ .Values.global.envMysqlHost | quote }}
+        - name: MYSQL_PORT
+          value: {{ .Values.global.envMysqlPort | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-password
+        - name: MYSQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-username
+        {{- range $key, $val := .Values.dependencyLogging }}
+        - name: {{ $key | quote }}
+          value: {{ $val.value | quote }}
+        {{- end }}        
+        name: {{ template "pcf-amservice-hook-name-post-rollback" . }}
+        {{- if .Values.imageTag }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+        {{- else }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+        {{- end }}
+        imagePullPolicy: Always
+        resources:
+{{ toYaml .Values.global.hookJobResources | indent 10 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "pcf-amservice-hook-name-pre-delete" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "pre-delete"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "pcf-amservice-hook-name-pre-delete" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+      - env:
+        - name: LOGGING_LEVEL_APP
+          value: {{ .Values.envLoggingLevelApp | quote }}
+        - name: APPLICATION_NAME
+          value: {{ .Values.appName | quote }}
+        - name: MICROSERVICE_NAME
+          value: {{ template  "am-service.fullname" .}}
+        - name: ENGINEERING_VERSION
+          value: {{ .Chart.Version | quote }}
+        - name: MARKETING_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: LOG4J2_BURST_RATE
+          value: {{ .Values.logging.burst.rate | quote }}
+        - name: LOG4J2_BURST_MAX
+          value: {{ .Values.logging.burst.max | quote }}
+        - name: HOOK_TYPE
+          value: pre-delete
+        - name: HOOK_VERSION
+          value: {{ .Chart.Version | quote}}          
+        - name: HOOK_CONFIG_KEY
+          value: "public.hook.amservice"
+        - name: NF_INSTANCE_ID
+          value: {{ .Values.global.nfInstanceId | quote }}
+        - name: SERVICE_MESH_CHECK
+          value: {{ .Values.global.serviceMeshEnabled | quote }}
+        - name: ISTIO_SIDECAR_QUIT_URL
+          value: {{ .Values.global.istioSidecarQuitUrl }}
+        - name: ISTIO_SIDECAR_READY_URL
+          value: {{ .Values.global.istioSidecarReadyUrl }}
+        - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+          value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+        - name: DB_ENGINE
+          value: {{ .Values.dbConfig.dbEngine }}
+        - name: MYSQL_RELEASE_DATABASE
+          value: {{ .Values.global.releaseDbName | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ .Values.envMysqlDatabase | quote }}
+        - name: MYSQL_HOST
+          value: {{ .Values.global.envMysqlHost | quote }}
+        - name: MYSQL_PORT
+          value: {{ .Values.global.envMysqlPort | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-password
+        - name: MYSQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-username
+        {{- range $key, $val := .Values.dependencyLogging }}
+        - name: {{ $key | quote }}
+          value: {{ $val.value | quote }}
+        {{- end }}              
+        name: {{ template "pcf-amservice-hook-name-pre-delete" . }}
+        {{- if .Values.imageTag }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+        {{- else }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+        {{- end }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        resources:
+{{ toYaml .Values.global.hookJobResources | indent 10 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "pcf-amservice-hook-name-post-delete" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": "post-delete"
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{ include "annotations.allResources" . }}
+  labels:
+    {{ include "labels.allResources" . }}
+spec:
+  template:
+    metadata:
+      name: {{ template "pcf-amservice-hook-name-post-delete" . }}
+      annotations:
+        {{ include "annotations.allResources" .  | indent 4 }} 
+      labels:
+        {{ include "labels.allResources" . | indent 4 }}
+    spec:
+      restartPolicy: {{ .Values.hookRestartPolicy | quote }}
+      containers:
+      - env:
+        - name: LOGGING_LEVEL_APP
+          value: {{ .Values.envLoggingLevelApp | quote }}
+        - name: APPLICATION_NAME
+          value: {{ .Values.appName | quote }}
+        - name: MICROSERVICE_NAME
+          value: {{ template  "am-service.fullname" .}}
+        - name: ENGINEERING_VERSION
+          value: {{ .Chart.Version | quote }}
+        - name: MARKETING_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: LOG4J2_BURST_RATE
+          value: {{ .Values.logging.burst.rate | quote }}
+        - name: LOG4J2_BURST_MAX
+          value: {{ .Values.logging.burst.max | quote }}
+        - name: HOOK_TYPE
+          value: post-delete
+        - name: HOOK_VERSION
+          value: {{ .Chart.Version | quote}}          
+        - name: HOOK_CONFIG_KEY
+          value: "public.hook.amservice"
+        - name: NF_INSTANCE_ID
+          value: {{ .Values.global.nfInstanceId | quote }}
+        - name: SERVICE_MESH_CHECK
+          value: {{ .Values.global.serviceMeshEnabled | quote }}
+        - name: ISTIO_SIDECAR_QUIT_URL
+          value: {{ .Values.global.istioSidecarQuitUrl }}
+        - name: ISTIO_SIDECAR_READY_URL
+          value: {{ .Values.global.istioSidecarReadyUrl }}
+        - name: HOOK_CONFLICT_RESOLUTION_ENABLED
+          value: {{ .Values.global.ndbConflictResolutionEnabled | quote }}
+        - name: DB_ENGINE
+          value: {{ .Values.dbConfig.dbEngine }}
+        - name: MYSQL_RELEASE_DATABASE
+          value: {{ .Values.global.releaseDbName | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ .Values.envMysqlDatabase | quote }}
+        - name: MYSQL_HOST
+          value: {{ .Values.global.envMysqlHost | quote }}
+        - name: MYSQL_PORT
+          value: {{ .Values.global.envMysqlPort | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-password
+        - name: MYSQL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.privilegedDbCredSecretName }}
+              key: mysql-username
+        {{- range $key, $val := .Values.dependencyLogging }}
+        - name: {{ $key | quote }}
+          value: {{ $val.value | quote }}
+        {{- end }}
+        name: {{ template "pcf-amservice-hook-name-post-delete" . }}
+        {{- if .Values.imageTag }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.imageTag }}"
+        {{- else }}
+        image: "{{ .Values.global.dockerRegistry }}/{{ .Values.image }}:{{ .Values.global.imageTag }}"
+        {{- end }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        resources:
+{{ toYaml .Values.global.hookJobResources | indent 10 }}
+{{- end }}

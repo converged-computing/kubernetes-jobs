@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: logs-controller-account
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: logs-controller-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log" ]
+    verbs: ["get", "watch", "list", "update", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: logs-controller-binding
+subjects:
+  - kind: ServiceAccount
+    name: logs-controller-account
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: logs-controller-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: collector-benchmark
+spec:
+  template:
+    metadata:
+      labels:
+        app: collector-benchmark
+    spec:
+      securityContext:
+        runAsNonRoot: false
+      serviceAccountName: logs-controller-account
+      containers:
+        - name: log-rotation
+          image: tmazur316/collector-benchmark:1.0
+          imagePullPolicy: Always
+          command: [ "go", "run", "./benchmark/benchmark.go" ]
+          volumeMounts:
+            - mountPath: /var/log/
+              name: logs-volume
+      volumes:
+        - name: logs-volume
+          hostPath:
+            path: "/var/log/"
+      restartPolicy: Never

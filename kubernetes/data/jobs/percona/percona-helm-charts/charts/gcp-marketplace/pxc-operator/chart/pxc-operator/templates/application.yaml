@@ -1,0 +1,106 @@
+apiVersion: app.k8s.io/v1beta1
+kind: Application
+metadata:
+  name: "{{ .Release.Name }}"
+  annotations:
+    kubernetes-engine.cloud.google.com/icon: >-
+      data:image/png;base64,{{ .Files.Get "logo.png" | b64enc }}
+    marketplace.cloud.google.com/deploy-info: '{"partner_id": "percona-public", "product_id": "percona-xtradb-cluster-operator", "partner_name": "percona"}'
+  labels:
+    app.kubernetes.io/name: "{{ .Release.Name }}"
+spec:
+  descriptor:
+    type: Percona Xtradb Cluster Operator
+    version: {{ .Values.operator.image.tag | quote }}
+    description: |-
+      ## Percona is Cloud Native
+
+      The Percona Kubernetes Operator for Percona XtraDB Cluster automates the
+      creation, alteration, or deletion of nodes in your cluster environment. It
+      can be used to instantiate a new database cluster or to scale an existing
+      database cluster. The Operator contains all necessary Kubernetes settings to
+      provide a proper and consistent Percona XtraDB Cluster instance.
+
+
+      Consult the
+      [documentation](https://www.percona.com/doc/kubernetes-operator-for-pxc/index.html)
+      on the Percona Kubernetes Operator for Percona XtraDB Cluster for complete
+      details on capabilities and options.
+
+
+      ### Supported Features
+
+
+      * **Scale Your Cluster**  change the `size` parameter to [add or remove members](https://www.percona.com/doc/kubernetes-operator-for-pxc/scaling.html)
+      of the cluster. Three is the minimum recommended size for a functioning
+      cluster.
+
+
+      * **Manage Your Users**  [add, remove, or change](https://www.percona.com/doc/kubernetes-operator-for-pxc/users.html)
+      the privileges of database users
+
+
+      * **Automate Your Backups**  [configure cluster backups](https://www.percona.com/doc/kubernetes-operator-for-pxc/backups.html)
+      to run on a scheduled basis. Backups are stored on a persistent volume.
+
+      # Support
+      Community support is available on [community forum](https://forums.percona.com/categories/kubernetes-operator-percona-xtradb-cluster).
+    maintainers:
+    - name: Percona
+      url: https://github.com/percona/percona-xtradb-cluster-operator
+    links:
+    - description: 'User Guide: Google Click to Deploy Percona Xtradb Cluster Operator'
+      url: https://github.com/percona/percona-helm-charts/blob/master/charts/gcp-marketplace/pxc-operator/README.md
+    - description: 'Official documentation for Percona Xtradb Cluster Operator'
+      url: https://www.percona.com/doc/kubernetes-operator-for-pxc/index.html
+    notes: |-
+      # Get authentication credentials for the cluster
+      ```shell
+      gcloud container clusters get-credentials [CLUSTER_NAME] --zone [CLUSTER_ZONE]
+      ```
+      where:
+      * `[CLUSTER_NAME]` is the name of the cluster for this app
+      * `[CLUSTER_ZONE]` is the zone in which the cluster is operating
+      For more information, read the [instructions for getting authentication credentials for the cluster](https://cloud.google.com/kubernetes-engine/docs/quickstart#get_authentication_credentials_for_the_cluster).
+      # Get the status of the cluster
+      By default, the app does not have an external IP address. To get the
+      status of the cluster, use `kubectl` to execute `mysqladmin` on a percona mysql client pod:
+      ```
+      kubectl run -i --rm --tty percona-client --image=percona:{{ .Values.pxc.version | trunc 3 }} --restart=Never -- bash -il
+      ```
+      Executing this command will open a bash command prompt:
+      ```
+      If you don't see a command prompt, try pressing enter.
+      $
+      ```
+      Now run mysql tool in the percona-client command shell using the password obtained from the secret:
+      ```
+      mysql -h {{ .Release.Name }}-haproxy -uroot -p$MYSQL_ROOT_PASSWORD
+      ```
+  info:
+  - name: Percona Xtradb Cluster root password
+    type: Reference
+    valueFrom:
+      secretKeyRef:
+        key: root
+        name: {{ .Release.Name }}-secrets
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "{{ .Release.Name }}"
+  componentKinds:
+    - group: apps/v1
+      kind: StatefulSet
+    - group: apps/v1
+      kind: Deployment
+    - group: batch/v1
+      kind: Job
+    - group: v1
+      kind: PersistentVolumeClaim
+    - group: v1
+      kind: Service
+    - group: v1
+      kind: ConfigMap
+    - group: v1
+      kind: Secret
+
+

@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: meili-migrate
+  namespace: podscriber
+spec:
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccount: podscriber
+      containers:
+      - name: meili-migrate
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "true"
+        envFrom:
+        - configMapRef:
+            name: podscriber-worker
+        - secretRef:
+            name: podscriber-worker
+        image: us.gcr.io/oddmark-stage/podscriber-worker:latest
+        command: ["python"]
+        args: ["-c", "from common.search import initialize_meilisearch; initialize_meilisearch()"]
+        workingDir: /worker
+      restartPolicy: Never

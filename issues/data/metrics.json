@@ -1,0 +1,42 @@
+{
+    "flux-framework/flux-core": {
+        "open": 525,
+        "closed": 5765,
+        "total": 6290
+    },
+    "flux-framework/flux-sched": {
+        "open": 112,
+        "closed": 1176,
+        "total": 1288
+    },
+    "openpbs/openpbs": {
+        "open": 98,
+        "closed": 2563,
+        "total": 2661
+    },
+    "htcondor/htcondor": {
+        "open": 33,
+        "closed": 2872,
+        "total": 2905
+    },
+    "adaptivecomputing/torque": {
+        "open": 86,
+        "closed": 389,
+        "total": 475
+    },
+    "IBM-Cloud/hpc-cluster-lsf": {
+        "open": 13,
+        "closed": 21,
+        "total": 34
+    },
+    "volcano-sh/volcano": {
+        "open": 308,
+        "closed": 3487,
+        "total": 3795
+    },
+    "kubernetes-sigs/kueue": {
+        "open": 142,
+        "closed": 3177,
+        "total": 3319
+    }
+}

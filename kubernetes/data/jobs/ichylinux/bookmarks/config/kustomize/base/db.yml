@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: &name bookmarks-db
+  labels: &labels
+    app: *name
+spec:
+  backoffLimit: 1
+  parallelism: 1
+  completions: 1
+  template:
+    metadata:
+      labels:
+        <<: *labels
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: *name
+        image: bookmarks/app:latest
+        envFrom:
+        - configMapRef:
+            name: bookmarks-config
+        - secretRef:
+            name: bookmarks-secret
+        command: ["/usr/local/bin/bundle"]
+        args: ["exec", "rails", "db:migrate"]

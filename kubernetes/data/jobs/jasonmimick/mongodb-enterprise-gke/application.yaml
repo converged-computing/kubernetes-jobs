@@ -1,0 +1,58 @@
+apiVersion: app.k8s.io/v1beta1
+kind: Application
+metadata:
+  name: '${OPERATOR_NAME}'
+  labels:
+    app.kubernetes.io/name: '${OPERATOR_NAME}'
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: '${OPERATOR_NAME}'
+  componentKinds:
+    - { group: core, kind: ConfigMap }
+    - { group: core, kind: Secret }
+    - { group: core, kind: Service }
+    - { group: apps, kind: Deployment }
+    - { group: batch, kind: Job }
+  descriptor:
+    description: This is MongoDB Enterprise on GKE Anthos for Google Marketplace.
+    type: MongoDB Enterprise Operator
+    version: '${MDB_OPERATOR_VERSION}'
+    maintainers:
+      - name: MongoDB 
+        url: https://www.mongodb.com/
+        email: info+gke@mongodb.com
+    keywords:
+      - database
+      - operator
+      - mongodb
+      - nosql
+    links:
+    - description: 'Documentation for Mongodb on Kubernetes'
+      url: https://docs.mongodb.com/kubernetes-operator/stable
+    - description: 'Getting Started'
+      url: https://github.com/mongodb/mongodb-gke/blob/master/README.md
+    - description: GitHub
+      url: https://github.com/mongodb/mongodb-enterprise-kubernetes
+      notes: |-
+
+      ### Intro
+      The MongoDB Enterprise Kubernetes Operator translates the human knowledge of creating a MongoDB instance into a scalable, repeatable, and standardized method. Kubernetes needs help creating and managing stateful applications like databases. It needs to configure the network, persist storage, and dedicate computing capacity without additional human effort on each container.
+
+    The Kubernetes Operator manages the typical lifecycle events for a MongoDB cluster such as provisioning storage and computing power, configuring network connections, setting up users, and changing these settings as needed. It accomplishes this using the Kubernetes API and tools.
+
+You provide the Operator with the specifications for your MongoDB cluster. The Operator uses this information to tell Kubernetes how to configure that cluster including provisioning storage, setting up the network connections, and configuring other resources.
+
+
+      ### Add notes on install and usage here
+      TODO TODO TODO TODO
+      TODO TODO TODO TODO
+
+  info:
+    - name: Interesting Output 1
+      value: kubectl port-forward --namespace '${OPERATOR_NAMESPACE}' service/cool-service
+    - name: Ops Manager URL
+      value: 'https://come-url-goes-here${OM}'
+    - name: DB Connection String
+      type: Reference
+      valueFrom: { type: SecretKeyRef, secretKeyRef: { name: '${CLUSTERNAME}-db-secret', key: connectionString } }

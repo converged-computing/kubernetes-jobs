@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    kubernetes.io/metadata.name: openshift-gitops-operator
+  name: openshift-gitops-operator
+spec:
+  finalizers:
+  - kubernetes
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    kubernetes.io/metadata.name: openshift-gitops
+  name: openshift-gitops
+spec:
+  finalizers:
+  - kubernetes
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  annotations:
+    olm.providedAPIs: AnalysisRun.v1alpha1.argoproj.io,AnalysisTemplate.v1alpha1.argoproj.io,AppProject.v1alpha1.argoproj.io,Application.v1alpha1.argoproj.io,ApplicationSet.v1alpha1.argoproj.io,ArgoCD.v1alpha1.argoproj.io,ArgoCD.v1beta1.argoproj.io,ClusterAnalysisTemplate.v1alpha1.argoproj.io,Experiment.v1alpha1.argoproj.io,GitopsService.v1alpha1.pipelines.openshift.io,Rollout.v1alpha1.argoproj.io,RolloutManager.v1alpha1.argoproj.io
+  generateName: openshift-gitops-operator-
+  name: openshift-gitops-operator-tcsph
+  namespace: openshift-gitops-operator
+spec:
+  upgradeStrategy: Default
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  labels:
+    operators.coreos.com/openshift-gitops-operator.openshift-gitops-operator: ""
+  name: openshift-gitops-operator
+  namespace: openshift-gitops-operator
+spec:
+  channel: latest
+  name: openshift-gitops-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: init-gitops-job
+  namespace: openshift-gitops
+spec:
+  template:
+    spec:
+      serviceAccount: openshift-gitops-argocd-application-controller
+      serviceAccountName: openshift-gitops-argocd-application-controller
+      containers:
+      - name: init-gitops
+        image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+        command:
+        - /bin/bash
+        - '-c'
+        - |
+          #!/bin/bash
+          set -uo pipefail
+
+          read -r -d '' CMD <<EOF
+          wait_for_argo_instance(){
+            until oc wait argocds.argoproj.io -n openshift-gitops openshift-gitops --for jsonpath='{.status.phase}'=Available; do 
+              sleep 5
+            done
+          }
+          patch_argo() {
+            oc patch argocds.argoproj.io -n openshift-gitops openshift-gitops --type=merge -p '{"spec":{"resourceHealthChecks":[{"kind":"PersistentVolumeClaim","check":"hs = {}\nif obj.status ~= nil then\n  if obj.status.phase ~= nil then\n    if obj.status.phase == \"Pending\" or obj.status.phase == \"Bound\" then\n      hs.status = \"Healthy\"\n      hs.message = obj.status.phase\n      return hs\n    end\n  end\nend\nhs.status = \"Progressing\"\nhs.message = \"Waiting for PersistentVolumeClaim\"\nreturn hs\n"}]}}'
+          }
+          restart_argo_instance() {
+            oc delete pod -l app.kubernetes.io/name=openshift-gitops-server
+          }
+          wait_for_argo_instance
+          patch_argo
+          restart_argo_instance
+          wait_for_argo_instance
+          EOF
+
+          timeout 180 bash -c "$CMD" $0
+      restartPolicy: OnFailure

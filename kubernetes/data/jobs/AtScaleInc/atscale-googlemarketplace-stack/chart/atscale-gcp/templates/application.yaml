@@ -1,0 +1,137 @@
+apiVersion: app.k8s.io/v1beta1
+kind: Application
+metadata:
+  name: "{{ .Release.Name }}"
+  namespace: "{{ .Release.Namespace }}"
+  labels:
+    app.kubernetes.io/name: "{{ .Release.Name }}"
+  annotations:
+    kubernetes-engine.cloud.google.com/icon: data:image/png;base64,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
+    marketplace.cloud.google.com/deploy-info: '{"partner_id": "atscale-public", "product_id": {{ .Chart.Name | quote }}, "partner_name": "Atscale"}'
+spec:
+  descriptor:
+    type: Atscale
+    version: {{ index .Values "atscale" "atscale-engine" "image" "tag" | quote }}
+    description: |-
+      AtScale is the leading semantic layer solution for modern business intelligence
+      and data science teams. AtScale insulates data consumers from the complexity of raw data,
+      exposing a business-oriented data model and virtualizing queries that leverage the
+      capabilities of powerful cloud data platforms like Google BigQuery.
+      BI teams connect to AtScale with data visualization platforms including Power BI,
+      Excel, Tableau, or Looker. Data scientists access the semantic layer with python to
+      consume a common view of enterprise metrics and dimensions with AutoML platforms and python notebooks.
+
+      AtScale customers leverage an intuitive modeling environment to define a business-oriented data model of raw data.
+      Once published, an AtScale model establishes a single source of key metrics and analysis dimensions
+      for data consumers to interact with.
+
+      Data consumers access live cloud data through AtScale with no physical data movement.
+      AtScale delivers the dimensional analysis and performance of traditional OLAP tools (like SSAS) with
+      no limitations on the size or location of the data. Leveraging connections optimized for BI clients
+      (including native DAX integration for Power BI) and AI powered query orchestration,
+      users get unparalleled query performance on live cloud data.
+
+      > Contact us directly at **GCM@atscale.com** for custom pricing!
+    maintainers:
+    - name: Atscale
+      url: https://atscale.com
+    links:
+    - description: 'Official documentation for AtScale'
+      url: https://documentation.atscale.com/
+    notes: |-
+      {{- if not .Release.IsUpgrade }}
+      ```yaml
+      Thank you for installing {{ .Chart.Name }}
+      Your chart version: {{ .Chart.Version }}
+      Your release is named {{ .Release.Name }}
+      ```
+
+      ## Accessing the Application:
+      ### AtScale:
+      You can access the AtScale GUI at [https://{{ .Values.global.ingressDomain }}/](https://{{ .Values.global.ingressDomain }}/)
+
+      You can use the below commands to get the credentials:
+      ```bash
+      echo "Username: $(kubectl get secret --namespace {{ .Release.Namespace }} keycloak-secret -o jsonpath="{.data.KC_ATSCALE_ADMIN_USERNAME}" | base64 -d)"
+      echo "Password: $(kubectl get secret --namespace {{ .Release.Namespace }} keycloak-secret -o jsonpath="{.data.KC_ATSCALE_ADMIN_PASSWORD}" | base64 -d)"
+      ```
+      ### Keycloak:
+      You can access the KeyCloak administrative panel at [https://{{ .Values.global.ingressDomain }}/auth](https://{{ .Values.global.ingressDomain }}/auth)
+
+      You can use the below commands to get the credentials:
+      ```bash
+      echo "Username: $(kubectl get secret --namespace {{ .Release.Namespace }} keycloak-secret -o jsonpath="{.data.KEYCLOAK_ADMIN}" | base64 -d)"
+      echo "Password: $(kubectl get secret --namespace {{ .Release.Namespace }} keycloak-secret -o jsonpath="{.data.KEYCLOAK_ADMIN_PASSWORD}" | base64 -d)"
+      ```
+      ### Minio:
+      You can access the Minio dashboard at [https://{{ .Values.global.ingressDomain }}/minio](https://{{ .Values.global.ingressDomain }}/minio)
+
+      You can use the below commands to get the credentials:
+      ```bash
+      echo "Username: $(kubectl get secret --namespace {{ .Release.Namespace }} minio-secret -o jsonpath="{.data.root-user}" | base64 -d)"
+      echo "Password: $(kubectl get secret --namespace {{ .Release.Namespace }} minio-secret -o jsonpath="{.data.root-password}" | base64 -d)"
+      ```
+      ### Grafana:
+      You can access the AtScale Monitoring dashboard at [https://{{ .Values.global.ingressDomain }}/monitoring](https://{{ .Values.global.ingressDomain }}/monitoring)
+
+      You can use the below commands to get the credentials:
+      ```bash
+      echo "Username: $(kubectl get secret --namespace {{ .Release.Namespace }} grafana-admin -o jsonpath="{.data.admin}" | base64 -d)"
+      echo "Password: $(kubectl get secret --namespace {{ .Release.Namespace }} grafana-admin -o jsonpath="{.data.password}" | base64 -d)"
+      ```
+      ### LoadBalancer Ports:
+      ```yaml
+      AtScale PG Connector: 15432
+      AtScale Thrift Connector: 11111
+      LoadBalancer (Kong): 443
+      ```
+      ### Internal Service Ports:
+      ```yaml
+      Kong Metrics: {{ .Values.atscale.kongproxy.kongStatusSvc.port }}
+      Loki: {{ .Values.atscale.telemetry.ports.loki.servicePort }}
+      Otel GRPC: 4317
+      Otel Http: 4318
+      Otel Zipkin: 9411
+      Postgres: {{ .Values.atscale.postgres.service.ports.postgresql }}
+      Redis: {{ .Values.atscale.redis.master.service.ports.redis }}
+      Tempo Distributor GRPC: 4317
+      ```
+      {{- end }}
+      {{- if .Release.IsUpgrade }}
+      Your AtScale installation has been successfully updated to {{ .Chart.Version }}
+      {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "{{ .Release.Name }}"
+  addOwnerRef: true
+  componentKinds:
+    - group: 'apiextensions.k8s.io/v1'
+      kind: CustomResourceDefinition
+    - group: 'v1'
+      kind: PersistentVolumeClaim
+    - group: 'v1'
+      kind: Secret
+    - group: 'v1'
+      kind: Service
+    - group: 'v1'
+      kind: ConfigMap
+    - group: 'v1'
+      kind: ServiceAccount
+    - group: 'batch/v1'
+      kind: Job
+    - group: 'v1'
+      kind: Pod
+    - group: 'apps/v1'
+      kind: DaemonSet
+    - group: 'apps/v1'
+      kind: StatefulSet
+    - group: 'autoscaling/v2'
+      kind: HorizontalPodAutoscaler
+    - group: 'networking.k8s.io/v1'
+      kind: Ingress
+    - group: 'apps/v1'
+      kind: Deployment
+    - group: 'rbac.authorization.k8s.io/v1'
+      kind: Role
+    - group: 'rbac.authorization.k8s.io/v1'
+      kind: RoleBinding

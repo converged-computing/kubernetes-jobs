@@ -1,0 +1,46 @@
+  apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: generate-lime
+  spec:
+    backoffLimit: 0
+    template:
+      metadata:
+        labels:
+          app: generate-lime
+      spec:
+        restartPolicy: "Never"
+        containers:
+          - name: generate-lime
+            image: registry.datexis.com/bvanaken-shk/xai-benchmark:v1.0
+            imagePullPolicy: "Always"
+            ports:
+              - name: client-port
+                containerPort: 6006
+            resources:
+              requests:
+                nvidia.com/gpu: 1
+                memory: "4Gi"
+                cpu: "500m"
+              limits:
+                nvidia.com/gpu: 1 # requesting 1 GPU
+                memory: 28Gi
+                cpu: "4000m"
+            volumeMounts:
+              - name: outcome-paper-models-pvc
+                mountPath: "/xai-benchmark"
+            env:
+            - name: PYTHONUNBUFFERED
+              value: "0"
+            command:
+              - /bin/sh
+              - "-c"
+              - "python interpret_lime.py --model_path /xai-benchmark/data/models/snli/transformer/transformer_snli_2e5_1.pt --output_dir '/xai-benchmark/data/saliency_transformer' --model trans --dataset snli --no_time --dataset_dir data/e-SNLI/dataset --labels  3 --gpu"
+        nodeSelector:
+          gpu: v100
+        imagePullSecrets:
+          - name:  private-registry-auth
+        volumes:
+        - name: outcome-paper-models-pvc
+          persistentVolumeClaim:
+            claimName: outcome-paper-models-pvc

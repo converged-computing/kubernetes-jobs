@@ -1,0 +1,233 @@
+halyard:
+  spinnakerVersion: 1.15.3
+  image:
+    repository: gcr.io/spinnaker-marketplace/halyard
+    tag: 1.23.0
+
+  # Set to false to disable persistence data volume for halyard
+  persistence:
+    enabled: false
+  # Provide a config map with Hal commands that will be run the core config (storage)
+  # The config map should contain a script in the config.sh key
+  additionalScripts:
+    enabled: true
+    configMapName: ${halyard_config}
+    configMapKey: ${halyard_config_key}
+    # If you'd rather do an inline script, set create to true and put the content in the data dict like you would a configmap
+    # The content will be passed through `tpl`, so value interpolation is supported.
+    create: false
+    data: {}
+  additionalSecrets:
+    create: false
+    data: {}
+    ## Uncomment if you want to use a pre-created secret rather than feeding data in via helm.
+    # name:
+  additionalConfigMaps:
+    create: false
+    data: {}
+    ## Uncomment if you want to use a pre-created ConfigMap rather than feeding data in via helm.
+    # name:
+  additionalProfileConfigMaps:
+    data:
+      orca-local.yml:
+        job:
+          preconfigured:
+            kubernetes:
+              - label: CopyDockerImage
+                type: copyDockerImage
+                description: Copy/promote a docker image from one registry to the other
+                cloudProvider: kubernetes
+                account: ${copy_image_context}
+                credentials: ${copy_image_context}
+                waitForCompletion: true
+                application: spinnaker
+                parameters:
+                  - name: SOURCE
+                    label: Source docker image uri
+                    description: Source uri to copy the image from (see https://github.com/containers/skopeo#copying-images).
+                    mapping: manifest.spec.template.spec.containers[0].env[0].value
+                    defaultValue: "docker://docker.io/nginx:1.17"
+                  - name: DESTINATION
+                    label: Destination docker image uri
+                    description: Destination uri to copy the image to (see https://github.com/containers/skopeo#copying-images).
+                    mapping: manifest.spec.template.spec.containers[0].env[1].value
+                    defaultValue: "docker://devopsdemospinnaker.azurecr.io/nginx:v1.17"
+                  - name: SOURCE_SECRET_KEY
+                    label: Source secret key
+                    description: 'The key that contains the source secret (format: "user:password")'
+                    mapping: manifest.spec.template.spec.containers[0].env[2].valueFrom.secretKeyRef.key
+                    defaultValue: "dev"
+                  - name: DESTINATION_SECRET_KEY
+                    label: Destination secret key
+                    description: 'The key that contains the destination secret (format: "user:password")'
+                    mapping: manifest.spec.template.spec.containers[0].env[3].valueFrom.secretKeyRef.key
+                    defaultValue: "prod"
+                manifest:
+                  apiVersion: batch/v1
+                  kind: Job
+                  metadata:
+                    name: copy-docker-image
+                    namespace: spinnaker
+                  spec:
+                    backoffLimit: 0
+                    template:
+                      spec:
+                        ttlSecondsAfterFinished: 600
+                        restartPolicy: Never
+                        containers:
+                          - name: copy-docker-image
+                            image: docker.io/butzist/copy-docker-image:latest
+                            env:
+                              - name: SOURCE
+                                value: invalid
+                              - name: DESTINATION
+                                value: invalid
+                              - name: SOURCE_CREDENTIALS
+                                valueFrom:
+                                  secretKeyRef:
+                                    name: ${copy_image_secrets}
+                                    key: invalid
+                              - name: DESTINATION_CREDENTIALS
+                                valueFrom:
+                                  secretKeyRef:
+                                    name: ${copy_image_secrets}
+                                    key: invalid
+
+      ## if you're running spinnaker behind a reverse proxy such as a GCE ingress
+      ## you may need the following profile settings for the gate profile.
+      ## see https://github.com/spinnaker/spinnaker/issues/1630
+      ## otherwise its harmless and will likely become default behavior in the future
+      ## According to the linked github issue.
+      # gate-local.yml:
+      #   server:
+      #     tomcat:
+      #       protocolHeader: X-Forwarded-Proto
+      #       remoteIpHeader: X-Forwarded-For
+    #       internalProxies: .*
+    #       httpsServerPort: X-Forwarded-Port
+
+  ## Define custom settings for Spinnaker services. Read more for details:
+  ## https://www.spinnaker.io/reference/halyard/custom/#custom-service-settings
+  ## You can use it to add annotations for pods, override the image, etc.
+  additionalServiceSettings:
+    gate.yml:
+      env:
+        azureTenantId: ${azure_tenant}
+
+    # deck.yml:
+    #   artifactId: gcr.io/spinnaker-marketplace/deck:2.9.0-20190412012808
+    #   kubernetes:
+    #     podAnnotations:
+    #       iam.amazonaws.com/role: <role_arn>
+    # clouddriver.yml:
+    #   kubernetes:
+  #     podAnnotations:
+  #       iam.amazonaws.com/role: <role_arn>
+
+  ## Uncomment if you want to add extra commands to the init script
+  ## run by the init container before halyard is started.
+  ## The content will be passed through `tpl`, so value interpolation is supported.
+  # additionalInitScript: |-
+
+  ## Uncomment if you want to add annotations on halyard and install-using-hal pods
+  # annotations:
+  #   iam.amazonaws.com/role: <role_arn>
+
+  ## Uncomment the following resources definitions to control the cpu and memory
+  # resources allocated for the halyard pod
+  resources:
+    limits:
+      cpu: 1
+      memory: 2Gi
+    requests:
+      cpu: 250m
+      memory: 1Gi
+
+  ## Uncomment if you want to set environment variables on the Halyard pod.
+  # env:
+  #   - name: JAVA_OPTS
+  #     value: -Dhttp.proxyHost=proxy.example.com
+  customCerts:
+    ## Enable to override the default cacerts with your own one
+    enabled: false
+    secretName: custom-cacerts
+
+deploymentEnvironment:
+  customSizing:
+    spin-front50:
+      limits:
+        cpu: 250m
+        memory: 2Gi
+      requests:
+        cpu: 100m
+        memory: 2Gi
+    spin-clouddriver:
+      limits:
+        cpu: 1
+        memory: 2Gi
+      requests:
+        cpu: 250m
+        memory: 2Gi
+    spin-clouddriver-bootstrap:
+      limits:
+        cpu: 1
+        memory: 2Gi
+      requests:
+        cpu: 250m
+        memory: 2Gi
+    spin-redis:
+      limits:
+        cpu: 250m
+        memory: 128Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    spin-deck:
+      limits:
+        cpu: 250m
+        memory: 64Mi
+      requests:
+        cpu: 100m
+        memory: 64Mi
+    spin-gate:
+      limits:
+        cpu: 250m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 1Gi
+    spin-orca-bootstrap:
+      limits:
+        cpu: 1
+        memory: 2Gi
+      requests:
+        cpu: 250m
+        memory: 2Gi
+    spin-igor:
+      limits:
+        cpu: 250m
+        memory: 768Mi
+      requests:
+        cpu: 100m
+        memory: 768Mi
+    spin-rosco:
+      limits:
+        cpu: 250m
+        memory: 768Mi
+      requests:
+        cpu: 100m
+        memory: 768Mi
+    spin-echo:
+      limits:
+        cpu: 250m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 1Gi
+    spin-orca:
+      limits:
+        cpu: 1
+        memory: 2Gi
+      requests:
+        cpu: 250m
+        memory: 2Gi

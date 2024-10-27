@@ -1,0 +1,97 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "oslat-{{ trunc_uuid }}"
+  namespace: "{{ operator_namespace }}"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ workload_args.job_timeout|default(3600) }}
+  template:
+    metadata:
+      labels:
+        app: oslat-{{ trunc_uuid }}
+        benchmark-uuid: {{ uuid }}
+{% if workload_args.annotations is defined %}
+      annotations:
+{% for annotation, value in workload_args.annotations.items() %}
+        "{{annotation}}": "{{value}}"
+{% endfor %}
+{% endif %}
+    spec:
+{% if workload_args.runtime_class is defined %}
+      runtimeClassName: "{{ workload_args.runtime_class }}"
+{% endif %}
+{% if workload_args.node_selector is defined %}
+      nodeSelector:
+        '{{ workload_args.node_selector.split("=")[0] }}': '{{ workload_args.node_selector.split("=")[1] }}'
+{% endif %}
+      containers:
+      - name: oslat
+        image: {{ workload_args.image | default('quay.io/cloud-bulldozer/oslat:latest') }}
+        command: ["/bin/sh", "-c"]
+        args: 
+          - run_snafu --tool oslat -p /tmp/oslat.sh -u {{ uuid }} --user {{test_user | default("ripsaw")}}
+{% if workload_args.debug is defined and workload_args.debug %}
+            -v
+{% endif %}
+            ;
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: {{ workload_args.pod.requests.memory }}
+            cpu: {{ workload_args.pod.requests.cpu }}
+          limits:
+            memory: {{ workload_args.pod.limits.memory }}
+            cpu: {{ workload_args.pod.limits.cpu }}
+        env:
+          - name: uuid
+            value: "{{ uuid }}"
+          - name: test_user
+            value: "{{ test_user | default("ripsaw") }}"
+          - name: clustername
+            value: "{{ clustername }}"
+{% if elasticsearch.url %}
+          - name: es
+            value: "{{ elasticsearch.url}}"
+          - name: es_index
+            value: "{{ elasticsearch.index_name | default("ripsaw-oslat") }}"
+          - name: parallel
+            value: "{{ elasticsearch.parallel | default(false) }}"
+          - name: es_verify_cert
+            value: "{{ elasticsearch.verify_cert | default(true) }}"
+{% endif %}
+{% if prometheus is defined %}
+          - name: prom_es
+            value: "{{ prometheus.es_url }}"
+          - name: prom_port
+            value: "{{ prometheus.es_port }}"
+          - name: prom_parallel
+            value: "{{ prometheus.es_parallel | default(false) }}"
+          - name: prom_token
+            value: "{{ prometheus.prom_token | default() }}"
+          - name: prom_url
+            value: "{{ prometheus.prom_url | default() }}"
+{% endif %}
+          - name: RUNTIME
+            value: "{{ workload_args.runtime }}"
+          - name: DISABLE_CPU_BALANCE
+            value: "{{ workload_args.disable_cpu_balance }}"
+          - name: USE_TASKSET
+            value: "{{ workload_args.use_taskset }}"
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: cstate
+          mountPath: /dev/cpu_dma_latency
+        - name: oslat-volume
+          mountPath: "/tmp/"
+      volumes:
+      - name: cstate
+        hostPath:
+          path: /dev/cpu_dma_latency
+      - name: oslat-volume
+        configMap:
+          name: "oslat-{{ trunc_uuid }}"
+          defaultMode: 0555
+      restartPolicy: Never
+{% include "metadata.yml.j2" %}

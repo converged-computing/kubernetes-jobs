@@ -1,0 +1,15 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pi
+spec: 
+  template:
+    spec:
+      containers:
+      - name: pi
+        image: perl
+        imagePullPolicy: Always
+        command: ["perl", "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+      restartPolicy: Never # If the job does not run successfully, mark the Pod as failed and create a new one.
+  backoffLimit: 3
+

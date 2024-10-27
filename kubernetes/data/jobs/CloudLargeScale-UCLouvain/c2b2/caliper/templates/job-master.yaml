@@ -1,0 +1,243 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ include "caliper.fullname" . }}-master"
+  labels:
+{{ include "caliper.labels" . | indent 4 }}
+spec:
+  parallelism: {{ .Values.replicaMasterCount }}
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: "{{ include "caliper.name" . }}-master"
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      nodeSelector:
+        organization: {{ .Values.organization }}-worker
+      tolerations:
+      - key: "key"
+        operator: "Equal"
+        value: {{ $.Values.tolerations.taint }}
+        effect: "NoSchedule" 
+
+      restartPolicy: "Never"
+      imagePullSecrets:
+        - name: regcred
+      serviceAccountName: vault-auth
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+      - name: certificates-init
+        image: index.docker.io/hyperledgerlabs/alpine-utils:1.0
+        imagePullPolicy: Always
+        env:
+        - name: VAULT_ADDR
+          value: {{ .Values.VAULT_ADDR }}
+        - name: VAULT_TOKEN
+          value: {{ .Values.VAULT_TOKEN }}
+        - name: VAULT_APP_ROLE
+          value: vault-role
+        - name: ENDORSING_ORG_NAMES
+          value: {{ .Values.ENDORSING_ORG_NAMES }}
+        - name: MOUNT_PATH
+          value: /secret
+        - name: NETWORK_VERSION
+          value: "2.2.0"
+        - name: FABRIC_USER
+          value: "admin"
+        command: ["sh", "-c"]
+        args:
+        - |-
+          #!/usr/bin/env sh
+          
+          set -x
+
+          validateVaultResponse () {
+          if echo ${2} | grep "errors"; then
+          echo "ERROR: unable to retrieve ${1}: ${2}"
+          exit 1
+          fi
+          }
+          KUBE_SA_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+          echo "Getting secrets from Vault Server: ${VAULT_ADDR}"
+          #override using vault root token to avoid namespace not autorized error
+          VAULT_CLIENT_TOKEN=$VAULT_TOKEN
+
+
+          ######################################################################
+          
+          version2=`echo $NETWORK_VERSION | grep -c 2.`
+          if [ $version2 = 1 ];then
+            #Downloading Certificates for all admin users
+            echo $ENDORSING_ORG_NAMES
+
+
+            for ns in $ENDORSING_ORG_NAMES
+            do
+              vault_secret_key="secret/crypto/peerOrganizations/${ns}-net/users/${FABRIC_USER}/msp"
+              echo "Getting TLS certificates from Vault using key $vault_secret_key"
+              
+              OUTPUT_PATH="${MOUNT_PATH}/${ns}/tls"
+              LOOKUP_SECRET_RESPONSE=$(curl -sS --header "X-Vault-Token: ${VAULT_CLIENT_TOKEN}" ${VAULT_ADDR}/v1/${vault_secret_key} | jq -r 'if .errors then . else . end')
+              validateVaultResponse "secret (${vault_secret_key})" "${LOOKUP_SECRET_RESPONSE}" 
+                
+              USER_CERT=$(echo ${LOOKUP_SECRET_RESPONSE} | jq -r '.data["signcerts"]')
+              USER_KEY=$(echo ${LOOKUP_SECRET_RESPONSE} | jq -r '.data["keystore"]')
+              
+              mkdir -p ${OUTPUT_PATH}
+              echo "${USER_CERT}" >> ${OUTPUT_PATH}/${FABRIC_USER}.cert
+              echo "${USER_KEY}" >> ${OUTPUT_PATH}/${FABRIC_USER}.pem
+              
+              vault_secret_key="secret/crypto/peerOrganizations/${ns}-net/peers/peer0.${ns}-net/msp"
+              echo "Getting MSP certificates from Vault using key $vault_secret_key"
+              
+              OUTPUT_PATH="${MOUNT_PATH}/${ns}/msp"
+              LOOKUP_SECRET_RESPONSE=$(curl -sS --header "X-Vault-Token: ${VAULT_CLIENT_TOKEN}" ${VAULT_ADDR}/v1/${vault_secret_key} | jq -r 'if .errors then . else . end')
+              validateVaultResponse "secret (${vault_secret_key})" "${LOOKUP_SECRET_RESPONSE}" 
+              ORG_TLS_CERTS=$(echo ${LOOKUP_SECRET_RESPONSE} | jq -r '.data["tlscacerts"]')          
+              mkdir -p ${OUTPUT_PATH}/tlscacerts
+              echo "${ORG_TLS_CERTS}" >> ${OUTPUT_PATH}/tlscacerts/tlsca.pem
+              
+              
+              vault_secret_key="secret/crypto/peerOrganizations/${ns}-net/orderer/tls"
+              echo "Getting Orderer certificates from Vault using key $vault_secret_key"
+              LOOKUP_SECRET_RESPONSE=$(curl -sS --header "X-Vault-Token: ${VAULT_CLIENT_TOKEN}" ${VAULT_ADDR}/v1/${vault_secret_key} | jq -r 'if .errors then . else . end')
+              validateVaultResponse "secret (${vault_secret_key})" "${LOOKUP_SECRET_RESPONSE}" 
+              ORDERER_TLS_CERTS=$(echo ${LOOKUP_SECRET_RESPONSE} | jq -r '.data["ca.crt"]')
+              echo "${ORDERER_TLS_CERTS}" >> ${OUTPUT_PATH}/tlscacerts/orderer-tlsca.pem
+
+
+            done
+          fi
+          echo "DONE VAULT_ADDR $VAULT_ADDR     VAULT_TOKEN   $VAULT_TOKEN   ENDORSING_ORG_NAMES $ENDORSING_ORG_NAMES "
+        volumeMounts:
+        - name: certificates
+          mountPath: /secret
+      containers:
+        - name: {{ .Chart.Name }}-master
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          args: ["{{ .Values.args.first }}", "{{ .Values.args.second}}","--caliper-fabric-gateway-enabled"]
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          volumeMounts:
+          #- name: {{ include "caliper.fullname" . }}--shared-pvc
+          #  mountPath: /hyperledger/caliper/workspace/
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/microBenchMarkconfig.yaml
+            subPath: microBenchMarkconfig.yaml   
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/caliperNetworkConfig.yaml
+            subPath: caliperNetworkConfig.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/createBid.js
+            subPath: createBid.js
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/createOffer.js
+            subPath: createOffer.js
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/caliper.yaml
+            subPath: caliper.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/simpleauction/go.mod
+            subPath: go.mod
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/simpleauction/simpleAuction.go
+            subPath: simpleAuction.go
+          - name: certificates
+            mountPath: /hyperledger/caliper/workspace/secret
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/queryOffer.js
+            subPath: queryOffer.js
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/queryBid.js
+            subPath: queryBid.js
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/caliperNetworkConfig-carrier.yaml
+            subPath: caliperNetworkConfig-carrier.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/caliperNetworkConfig-manufacturer.yaml
+            subPath: caliperNetworkConfig-manufacturer.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/caliperNetworkConfig-buyer.yaml
+            subPath: caliperNetworkConfig-buyer.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/carrierConnectionProfile.yaml
+            subPath: carrierConnectionProfile.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/manufacturerConnectionProfile.yaml
+            subPath: manufacturerConnectionProfile.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/buyerConnectionProfile.yaml
+            subPath: buyerConnectionProfile.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/sellerConnectionProfile.yaml
+            subPath: sellerConnectionProfile.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/caliperNetworkConfig-seller.yaml
+            subPath: caliperNetworkConfig-seller.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/storeConnectionProfile.yaml
+            subPath: storeConnectionProfile.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/caliperNetworkConfig-store.yaml
+            subPath: caliperNetworkConfig-store.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/sixConnectionProfile.yaml
+            subPath: sixConnectionProfile.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/caliperNetworkConfig-six.yaml
+            subPath: caliperNetworkConfig-six.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/sevenConnectionProfile.yaml
+            subPath: sevenConnectionProfile.yaml
+          - name: {{ include "caliper.fullname" . }}--yaml-config
+            mountPath: /hyperledger/caliper/workspace/caliperNetworkConfig-seven.yaml
+            subPath: caliperNetworkConfig-seven.yaml
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          livenessProbe:
+            initialDelaySeconds: 9999
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            initialDelaySeconds: 9999
+            httpGet:
+              path: /
+              port: http
+          env:
+          - name: CALIPER_BIND_SUT
+            value: fabric:2.1.0
+          - name: CALIPER_BIND_SDK
+            value: 2.1.0
+          - name: CALIPER_BENCHCONFIG
+            value: microBenchMarkconfig.yaml
+          - name: CALIPER_NETWORKCONFIG
+            value: caliperNetworkConfig-{{ .Values.organization }}.yaml
+          - name: CALIPER_REPORT_PATH
+            value: report_change_Name_InConfigMap.html
+          - name: CALIPER_LOGGING-FORMATS-JSON
+            value: "{space:0}"
+          - name: CALIPER_WORKER_REMOTE
+            value: "true"
+          - name: CALIPER_WORKER_COMMUNICATION_METHOD
+            value: "mqtt"
+          - name: CALIPER_WORKER_COMMUNICATION_ADDRESS
+            value: "mqtt://caliper-mosquitto:1883"
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+      #- name: {{ include "caliper.fullname" . }}--shared-pvc
+      #  persistentVolumeClaim:
+      #    claimName: sharedclaim
+      - name: {{ include "caliper.fullname" . }}--yaml-config
+        configMap:
+          name: {{ include "caliper.fullname" . }}--yaml-config
+          defaultMode: 0744
+      - name: certificates
+        emptyDir: {}

@@ -1,0 +1,87 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: controller-override-ts-5
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: mantis-controller
+    spec:
+      serviceAccountName: controller-role
+      restartPolicy: Never
+      containers:
+        - name: controller
+          # imagePullPolicy: Always
+          image: fissure/py:d8f740
+          command: [
+            "mantis",
+            "run-controller",
+            "--redis-image-sha", "782e5c",
+            "--py-image-sha", "d8f740",
+            "--load", "/data/one-qps-three-minutes.npy",
+            # "--load", "/data/Waikato-1h-3.npy",
+            # "--load", "/data/Waikato-5h.npy",
+            # "--load", "/data/Auckland-10min.npy",
+            "--workload", "busy-sleep",
+            "--workload-args", "sleep_time_s=0.02",
+            # "--workload", "nlp",
+            # "--workload", "vision",
+            "--start-replicas", "1",
+            # "--controller", "k8s_native",
+            # "--controller-args", "target_cpu=50,max_replicas=72",
+            "--controller-time-step", "5",
+
+            "--controller", "scheduled",
+            "--controller-args", "schedule_str=10/-5/0/0/0",
+            # "--controller", "pid",
+            # "--controller-args", "model_processing_time_s=0.046,target_sigma=0.5" ,
+
+            # Spin up/down benchmark:
+            # "--load", "/data/one-qps-ten-minutes.npy",
+            # "--workload", "sleep",
+            # "--workload-args", "sleep_time_s=0.02",
+            # "--start-replicas", "30",
+            # "--controller", "add_delete_fixed",
+            # "--controller-args", "amount=20",
+            # "--controller-time-step", "20"
+
+            # "--fractional-sleep", "0.02"
+          ]
+          volumeMounts:
+          - mountPath: /data
+            name: data-volume
+          env:
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: aws-s3-creds
+                key: AWS_ACCESS_KEY_ID
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: aws-s3-creds
+                key: AWS_SECRET_ACCESS_KEY
+          - name: SLACK_ENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: slack-endpoint
+                key: SLACK_ENDPOINT
+          resources:
+            requests:
+              mantis.com/concurrent: 1
+            limits:
+              mantis.com/concurrent: 1
+      initContainers:
+        - name: copy-traces
+          image: fissure/traces:latest
+          command: ["sh", "-c", "cp -r /data/* /trace-data/"]
+          volumeMounts:
+          - mountPath: /trace-data
+            name: data-volume
+      volumes:
+        - name: data-volume
+          hostPath:
+            path: /trace-data
+            type: DirectoryOrCreate

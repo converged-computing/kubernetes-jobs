@@ -1,0 +1,104 @@
+
+{{- range $deviceIdx := until ( int ( $.Values.hwDeviceNum ) ) }}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: xcode-service-{{ $deviceIdx }}
+  name: xcode-service-{{ $deviceIdx }}
+spec:
+  selector:
+    matchLabels:
+      app: xcode-service-{{ $deviceIdx }}
+  replicas: {{ $.Values.vodTranscode.replicas }}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: xcode-service-{{ $deviceIdx }}
+    spec:
+      containers:
+      - args:
+        - bash
+        - -c
+        - /home/main.py
+        image: {{ $.Values.registryPrefix }}tc_xcode_{{ lower $.Values.platform }}:latest
+        imagePullPolicy: IfNotPresent
+        name: xcode-service-{{ $deviceIdx }}
+        env:
+{{- if ne $.Values.platform "Xeon" }}
+          - name: HW_ACC_TYPE
+            value: {{ $.Values.hwAccType }}
+          - name: HW_DEVICE
+            value: /dev/dri/renderD{{ add $deviceIdx 128 }}
+{{- end }}
+          - name: SCENARIO
+            value: {{ $.Values.scenario | quote }}
+          - name: NO_PROXY
+            value: "*"
+          - name: no_proxy
+            value: "*"
+        volumeMounts:
+          - mountPath: /var/www/archive
+            name: archive
+            readOnly: true
+          - mountPath: /var/www/video
+            name: cache
+{{- if ne $.Values.platform "Xeon" }}
+#        resources:
+#          limits:
+#            gpu.intel.com/i915: 1
+        securityContext:
+          privileged: true
+          runAsUser: 0
+{{- end }}
+      volumes:
+        - name: archive
+          persistentVolumeClaim:
+            claimName: video-archive
+        - name: cache
+          persistentVolumeClaim:
+            claimName: video-cache
+      restartPolicy: Always
+
+---
+{{- end }}
+
+
+{{- if ne "cdn" $.Values.scenario }}
+---
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: benchmark
+spec:
+  template:
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: benchmark
+          image: {{ $.Values.registryPrefix }}tc_benchmark_service:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NO_PROXY
+              value: "*"
+            - name: no_proxy
+              value: "*"
+          volumeMounts:
+            - mountPath: /var/www/archive
+              name: video-archive
+              readOnly: true
+            - mountPath: /var/www/video
+              name: video-cache
+      volumes:
+          - name: video-archive
+            persistentVolumeClaim:
+               claimName: video-archive
+          - name: video-cache
+            persistentVolumeClaim:
+               claimName: video-cache
+      restartPolicy: Never
+
+{{- end }}

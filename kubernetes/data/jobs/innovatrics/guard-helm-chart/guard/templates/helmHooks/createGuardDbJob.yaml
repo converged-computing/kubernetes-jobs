@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-guard-db-job
+  annotations:
+    "helm.sh/hook": pre-install
+spec:
+  template:
+    spec:
+      containers:
+        - name: create-guard-db-job
+          image: postgres:latest
+          command: ["/bin/bash", "-c"]
+          args: 
+            - |
+              export PGPASSWORD=$DB_PASSWORD
+              DB_EXISTS=$(psql --host=$DB_ENDPOINT --port=5432 --username=$DB_USER --dbname=smartface -tAc "SELECT 1 FROM pg_database WHERE datname='guard'")
+              if [ "$DB_EXISTS" = "1" ]; then
+                echo "Database 'guard' already exists, marking as successful"
+                exit 0
+              else
+                psql --host=$DB_ENDPOINT --port=5432 --username=$DB_USER --dbname=smartface -c "CREATE DATABASE guard;" || {
+                  echo "Error: $?, Command failed"
+                  exit 1
+                }
+              fi
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.configurations.database.existingSecretName }}
+                  key: {{ .Values.configurations.database.usernameKey }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.configurations.database.existingSecretName }}
+                  key: {{ .Values.configurations.database.passwordKey }}
+            - name: DB_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.configurations.database.existingSecretName }}
+                  key: {{ .Values.configurations.database.endpointKey }}
+      restartPolicy: Never
+  backoffLimit: 4
+  

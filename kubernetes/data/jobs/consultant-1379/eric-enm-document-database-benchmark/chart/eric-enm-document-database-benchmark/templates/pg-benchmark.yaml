@@ -1,0 +1,71 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "eric-enm-document-database-benchmark.name" . }}-load-tester
+  labels:
+    {{- include "eric-enm-document-database-benchmark.pgbenchmark.labels" . | nindent 4 }}
+  annotations:
+  {{- include "eric-enm-document-database-benchmark.product.annotations" . | nindent 4}}
+spec:
+  backoffLimit: 0
+  parallelism: {{ include "eric-enm-document-database-benchmark.parallelExecutions" . }}
+  completions: {{ include "eric-enm-document-database-benchmark.parallelExecutions" . }}
+  template:
+    metadata:
+      labels:
+        {{- include "eric-enm-document-database-benchmark.pgbenchmark.labels" . | nindent 8 }}
+    spec:
+      volumes:
+      - name: pg-bench-volume
+        emptyDir: {}
+      - name: pg-bench-config
+        configMap:
+          name: {{ include "eric-enm-document-database-benchmark.name" . }}-pg-bench-config
+      - name: pg-secret
+        secret:
+          secretName: {{ include "eric-enm-document-database-benchmark.name" . }}-ddbpg-secret
+      imagePullSecrets:
+        - name: {{ include "eric-enm-document-database-benchmark.pullSecret" . }}
+      {{- with .Values.tolerations.benchmark }}
+      tolerations:
+      {{ toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - command: [ "python3.11", "/python/scripts/benchmark_service.py" ]
+        image: {{ include "eric-enm-document-database-benchmark.pgbench.imageName" . }}
+        imagePullPolicy: {{ include "eric-enm-document-database-benchmark.benchmark.pullPolicy" . }}
+        name: pg-benchmark
+        resources:
+          limits:
+            cpu: {{ .Values.resources.pgbenchmark.limits.cpu  }}
+            memory: {{ .Values.resources.pgbenchmark.limits.memory  }}
+          requests:
+            cpu: {{ .Values.resources.pgbenchmark.requests.cpu   }}
+            memory: {{ .Values.resources.pgbenchmark.requests.memory }}
+        ports:
+          - containerPort: {{ include "eric-enm-document-database-benchmark.prometheus.port" . }}
+        env:
+          - name: METRICS_PORT
+            value: {{ include "eric-enm-document-database-benchmark.prometheus.port" . | quote}}
+        volumeMounts:
+          - name: pg-bench-volume
+            mountPath: /pgbench
+          - name: pg-bench-config
+            mountPath: /config
+          - name: pg-secret
+            mountPath: /secret
+        securityContext:
+{{- include "eric-enm-document-database-benchmark.securityContext" . | nindent 10 }}
+      initContainers:
+      - name: init-wait-pgbm
+        image: {{ include "eric-enm-document-database-benchmark.eric-cniv-init-wait.imageName" . }}
+        imagePullPolicy: {{ include "eric-enm-document-database-benchmark.init-wait.pullPolicy" . }}
+        command: ['/bin/sh', '/wait_for_orchestrator.sh']
+        env:
+        - name: ORCH_HOSTNAME
+          value: {{ $.Chart.Name }}
+        - name: ORCH_PORT
+          value: {{ include "eric-enm-document-database-benchmark.orchestrator.http.port" . | quote }}
+        securityContext:
+{{- include "eric-enm-document-database-benchmark.securityContext" . | nindent 10 }}
+      restartPolicy: Never

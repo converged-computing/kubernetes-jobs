@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright 2021-2022, Intel Corporation
+#
+---
+- set_fact:
+    benchmark_namespaces_counter: "{{ benchmark_namespaces | length }}"
+    deployed_jobs_names_stdout: []
+    deployed_jobs_names: []
+
+- name: "benchmark_clusters | Save kustomized {{ job_name }} jobs definitions to files"
+  copy:
+    content: "{{ lookup('kubernetes.core.kustomize', dir=k8s_definitions_dir_path + '/' + redis_cluster_namespace + '/run_tests_timed') }}"
+    dest: "{{ k8s_definitions_dir_path }}/{{ redis_cluster_namespace }}/run_tests_timed/kustomized_benchmark_run_tests_job.yml"
+  loop: "{{ benchmark_namespaces }}"
+  loop_control:
+    loop_var: redis_cluster_namespace
+
+- name: "benchmark_clusters | Deploy {{ job_name }} jobs inside namespaces"
+  shell: |
+    kubectl create -f "{{ k8s_definitions_dir_path }}/{{ redis_cluster_namespace }}/run_tests_timed/kustomized_benchmark_run_tests_job.yml"
+  ignore_errors: yes
+  register: deployed_jobs_names_stdout
+  loop: "{{ benchmark_namespaces }}"
+  loop_control:
+    loop_var: redis_cluster_namespace
+
+- set_fact:
+    deployed_jobs_names: "{{ deployed_jobs_names | default([]) + [ item['stdout'] | regex_search('job.batch/(?P<job>.*) created', '\\g<job>') | first ] }}"
+  with_items: "{{ deployed_jobs_names_stdout['results'] }}"
+  no_log: true
+
+- name: "benchmark_clusters | Wait for {{ job_name }} jobs to complete"
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Job
+    namespace: "{{ benchmark_namespaces[item | int - 1] }}"
+    name: "{{ deployed_jobs_names[item | int - 1] }}"
+    wait: yes
+    wait_condition:
+      type: Complete
+      status: "True"
+    wait_sleep: 60
+    wait_timeout: 21600 # wait for 6h
+  with_items: "{{ benchmark_namespaces_counter }}"
+
+- pause:
+    seconds: 60
+
+# vi:et:sw=2 ts=2 sts=2 ft=ansible

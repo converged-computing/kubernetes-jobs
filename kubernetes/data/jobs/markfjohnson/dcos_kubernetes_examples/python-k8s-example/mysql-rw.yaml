@@ -1,0 +1,15 @@
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mysql-rw
+spec:
+  template:
+    spec:
+      containers:
+      - name: mysql-rw
+        image: markfjohnson/python-k8s
+        command: ["python"]
+        args: ["/python-k8s-samples/mysql-rw.py"]
+      restartPolicy: Never
+  backoffLimit: 4

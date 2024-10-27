@@ -1,0 +1,42 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ibi-config
+  namespace: ibi-post-config
+spec:
+  completions: 1
+  parallelism: 1
+  template:
+    spec:
+      serviceAccountName: ibi-config
+      containers:
+      - image: "quay.io/markd/ibi-post-config:v2"
+        name: ibi-debug
+        imagePullPolicy: Always
+        resources:
+          limits:
+            memory: 2Gi
+            cpu: "1"
+          requests:
+            memory: 256Mi
+            cpu: "0.2"
+        env:
+        - name: K8S_AUTH_API_KEY
+          value: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        volumeMounts:
+          - name: ipsec-cm
+            mountPath: /ansible/dynamic/ipsec
+          - name: acm-import-secret
+            mountPath: /ansible/dynamic/acm
+      volumes:
+        - name: ipsec-cm
+          configMap:
+            name: ipsec-cm
+        - name: acm-import-secret
+          secret:
+            secretName: acm-import-secret
+      # change this to OnFailure once debugging is done
+      # restartPolicy: "OnFailure"
+      restartPolicy: "OnFailure"
+  backoffLimit: 4

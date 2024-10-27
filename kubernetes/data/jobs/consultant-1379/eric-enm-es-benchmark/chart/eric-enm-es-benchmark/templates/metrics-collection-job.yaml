@@ -1,0 +1,76 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $.Chart.Name }}
+  labels:
+    benchmarkgroup: {{ include "eric-enm-es-benchmark.benchmarkGroup.label" . }}
+    benchmarkName: {{ $.Chart.Name }}
+spec:
+  backoffLimit: 6
+  completions: 1
+  parallelism: 1
+  template:
+    metadata:
+      labels:
+         benchmarkgroup: {{ include "eric-enm-es-benchmark.benchmarkGroup.label" . }}
+    spec:
+      initContainers:
+      {{- if eq (include "eric-enm-es-benchmark.cnivAgent.enabled" . ) "true" }}
+      - name: init-wait-cniv
+        image: {{ template "eric-enm-es-benchmark.initbenchimagepath" . }}
+        imagePullPolicy: {{ .Values.imageCredentials.pullPolicy }}
+        command: ['/bin/sh', '/agent_wait.sh']
+        env:
+        - name: AGENT_HOSTNAME
+          value: {{ include "eric-enm-es-benchmark.cnivAgent.name" . }}
+        - name: AGENT_PORT
+          value: {{ include "eric-enm-es-benchmark.cnivAgent.port" . | quote }}
+        - name: BENCH_NAME
+          value: {{ $.Chart.Name }}
+        - name: BENCH_GROUP
+          value: {{ include "eric-enm-es-benchmark.benchmarkGroup.label" . }}
+      {{- end }}
+      - name: init-check-connectivity
+        image: {{ template "eric-enm-es-benchmark.esbenchimagepath" . }}
+        imagePullPolicy: {{ .Values.imageCredentials.pullPolicy }}
+        command: ['/bin/sh', '/opt/ericsson/elasticsearch/check_connectivity.sh', '-s', 'elasticsearch']
+      {{- if eq (include "eric-enm-es-benchmark.cnivAgent.enabled" . ) "false" }}
+      - name: init-myservice
+        image: curlimages/curl
+        command: ['sh', '-c', 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' http://scbench:8080/start_request/{{ template "eric-enm-es-benchmark.benchmarkGroup.label" . }}/{{ $.Chart.Name }})" != "202" ]]; do echo "sleeping"; sleep 10; done']
+      {{- end }}
+      containers:
+      - command: ["/bin/sh", "-c"]
+        args:
+          ["python3.11 /opt/ericsson/elasticsearch/metrics_collection.py -t {{ .Values.esbench.metricruntime }};
+          python3.11 /opt/ericsson/elasticsearch/report_generation.py ${AGENT_HOSTNAME}"]
+        image: {{ template "eric-enm-es-benchmark.esbenchimagepath" . }}
+        imagePullPolicy: {{ .Values.imageCredentials.pullPolicy }}
+        name: esmetrics
+        resources:
+          {{- toYaml .Values.resources.esmetrics | nindent 12 }}
+        env:
+        - name: AGENT_HOSTNAME
+          value: {{ include "eric-enm-es-benchmark.cnivAgent.name" . }}
+        - name: AGENT_PORT
+          value: {{ include "eric-enm-es-benchmark.cnivAgent.port" . | quote }}
+        - name: BENCH_NAME
+          value: {{ $.Chart.Name }}
+        - name: BENCH_GROUP
+          value: {{ include "eric-enm-es-benchmark.benchmarkGroup.label" . }}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Never
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: esbench-config
+          configMap:
+            name: esbench-config
+        - name: pvc
+          persistentVolumeClaim:
+            claimName: {{ include "eric-enm-es-benchmark.name" . }}
+      imagePullSecrets:
+        - name: {{ include "eric-enm-es-benchmark.pullSecret" . }}
